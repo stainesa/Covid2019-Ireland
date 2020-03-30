@@ -1,0 +1,48 @@
+---
+title: "Load data"
+author: "Anthony Staines"
+date: "13/03/2020"
+output: 
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(devtools)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r load}
+install_github("RamiKrispin/coronavirus")
+```
+
+```{r test}
+library(coronavirus)
+data("coronavirus")
+glimpse(coronavirus)
+
+```
+
+```{r some tables}
+summary_df <- coronavirus %>% group_by(Country.Region, type) %>%
+  summarise(total_cases = sum(cases)) %>%
+  arrange(-total_cases)
+
+coronavirus %>% 
+  filter(date == max(date)) %>%
+  select(country = Country.Region, type, cases) %>%
+  group_by(country, type) %>%
+  summarise(total_cases = sum(cases)) %>%
+  pivot_wider(names_from = type,
+              values_from = total_cases) %>%
+  arrange(-confirmed)
+```
+
+
