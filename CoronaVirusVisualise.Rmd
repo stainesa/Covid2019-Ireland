@@ -240,23 +240,32 @@ ggplot(data=Prepared,aes(x=Day,y=log10(Sum.Cases),colour=Country.Region)) +
                  colour='red') +
   theme(legend.position="none")
 
-Prepared.30 <- Prepared %>%
+Prepared.20 <- Prepared %>%
   group_by(Country.Region) %>%
-  filter(Sum.Cases > 30) %>%
+  filter(Sum.Cases > 20) %>%
   mutate(Day2 = seq_along(date))
 
-Prepared.30 <- Prepared.30 %>%
+Prepared.20 <- Prepared.20 %>%
   filter(Country.Region %in% c('Czechia', 'Hungary', 'France', 'Spain', 'US', 'United Kingdom','Ireland'))
 
-ggplot(data=Prepared.30,
+g <- ggplot(data=Prepared.30,
        aes(x=Day2,y=Sum.Cases,colour=Country.Region)) +
   geom_path() +
+  geom_point(data = Prepared.30 %>% filter (Country.Region == "Ireland")) +
   geom_text_repel(data = Prepared.30 %>%
                     filter(Day2 == max(Day2)),
-                  aes(x=Day2, y=0.8*Sum.Cases, 
+                  aes(x=Day2+1.75, y=Sum.Cases, 
                       label=Country.Region), size=4) +
   scale_y_log10(labels=scales::comma) +
+  ylab('Total number of cases') + xlab('Days since 20th case') +
+  ggtitle('Ireland COVID-19 in context') +
+  theme_grey(base_size = 22) +
   theme(legend.position="none")
+
+g
+
+ggsave('images/Total_Observed_latest.png', g,
+       units='cm', dpi=600, width=21, height=15)
 
 ```
 
@@ -301,7 +310,7 @@ g <- ggplot(data=Prepared2.50,
                       label=Country.Region),size=4) +
   geom_label_repel(data=Results.50 %>%
                      filter(Day == max(Day)),
-             aes(x=max(Results.50$Day2+2), y=1.3*max(Results.50$Sim.Mean),
+             aes(x=max(Results.50$Day2+2), y=0.7*max(Results.50$Sim.Mean),
                        label='Predicted'),size=3,colour='pink') +
   scale_y_log10(labels=scales::comma) +
   scale_x_continuous() +
@@ -317,7 +326,6 @@ ggsave('images/Total_predictions_latest.png', g,
 ## Graphs of latest daily predictions
 
 ```{r}
-
 Prediction <- Results %>%
   mutate(Daily.Cases.nls = nls.Predicted - lag(nls.Predicted)) %>% 
   mutate(Daily.Cases.97.5 = Sim.97.5.pct - lag(Sim.97.5.pct)) %>% 
@@ -328,7 +336,7 @@ Prediction <- Results %>%
   mutate(Observed = Total.Cases) %>%
   mutate(Predicted = Daily.Cases.Gom) %>%
   mutate(Date = (Day -1) + ymd('2020-03-03')) %>%
-  filter(Day < 37)
+  filter(Day < 39)
 
 g <- ggplot(data = Prediction)  +
   geom_point(aes(x = Date, y = Observed),colour='red') +
@@ -340,7 +348,7 @@ g <- ggplot(data = Prediction)  +
   ggtitle('Reported daily cases of COVID-19 infection',
           subtitle = 'Observed and predicted') +
   theme_grey(base_size = 22) +
-  scale_x_date(date_breaks = "1 week")
+  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
 g
 ggsave('images/Daily_predictions_nls_latest.png',g,units='cm',dpi=600,width=21,height=15)
 
@@ -354,7 +362,7 @@ g <- ggplot(data = Prediction)  +
   ggtitle('Reported daily cases of COVID-19 infection',
           subtitle = 'Observed and predicted') +
   theme_grey(base_size = 22)  +
-  scale_x_date(date_breaks = "1 week")
+  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
 g
 
 ggsave('images/Daily_predictions_latest_Gom.png',g,units='cm',dpi=600,width=21,height=15)
