@@ -7,16 +7,27 @@ editor_options:
   chunk_output_type: console
 ---
 
+#Purpose
+
+To prepare models for coronvairus incidence, and short term predictions, in Ireland
+
 ```{r setup, include=FALSE}
 rm(list=ls())
-library(coronavirus)
-library(propagate)
-library(ggrepel)
-library(lubridate)
+library(coronavirus) # Coronavirus data
+library(propagate) # Errors in non-linear regression models
+library(ggrepel) # Nice labels
+library(lubridate) # Sane date handling
+library(drc)
+library(sandwich)
+library(lmtest)
 library(tidyverse)
+
 data("coronavirus")
+
 knitr::opts_chunk$set(echo = TRUE)
 ```
+## Correct the Irish data
+The Irish data contain some errors in the JHU dataset, and are less up-to-date. We donwload the data manually from the website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) and add it to an excel file for each day
 
 
 ```{r Ireland}
@@ -32,14 +43,14 @@ Ireland.manual <- readxl::read_xlsx('data/Ireland.xlsx',
 
 coronavirus <- coronavirus %>%
   filter(Country.Region != 'Ireland') %>%
-  rbind(Ireland.manual %>%
-  select(-deaths))
+  rbind(Ireland.manual)
 
 Ireland_corrected <- coronavirus %>%
   filter(Country.Region == 'Ireland', type == 'confirmed') 
 
 ```
 
+## Identify the areas and the first date of a recorded confirmed case, and of a recorded death
 
 ```{r Country}
 Areas <- coronavirus %>%
@@ -56,11 +67,19 @@ FirstDates <- coronavirus %>%
   select(Country.Region, First.Date = date) %>%
   distinct()  %>%
   arrange(First.Date, Country.Region)
+  
+DeathDates <- coronavirus %>%
+  filter(type == 'death') %>%
+  group_by(Country.Region) %>%
+  filter(cases > 0) %>%
+  filter(date == min(date)) %>%
+  select(Country.Region, First.Date = date) %>%
+  distinct()  %>%
+  arrange(First.Date, Country.Region)
 
- 
- # filter(Country.Region %in% c("Ireland", "Italy", "Japan", "Korea, South", "Netherlands", "United Kingdom", "Singapore"))
-  #filter(Country.Region %in% Areas$Country.Region)
 ```
+
+# Prepare a geenral data set of confirmed cases
 
 ```{r General data set}
 
@@ -69,19 +88,15 @@ Prepared <- coronavirus %>%
   group_by(Country.Region, date ) %>%
   summarise(Total.Cases = sum(cases)) %>% # Collapse over Province.State
   right_join(FirstDates) %>%
-  mutate(Day = 0 + date - First.Date) %>%
+  arrange(date) %>%
+  mutate(Day = seq_along(date)) %>% # Set up days from first case
   filter(Day >= 0) %>%
   arrange(Country.Region, Day) %>%
-  mutate(Sum.Cases = cumsum(Total.Cases))
-
-Prepared2 <- Prepared %>%
-  filter(Sum.Cases >= 0) %>%
-  mutate(Day2  = seq_along(date))
-
-table(Prepared$Country.Region)
+  mutate(Sum.Cases = cumsum(Total.Cases)) # Cumulative total of cases is Sum.Cases
 
 ```
 
+## Prepare an Ireland specific dataset
 
 ```{r Ireland specific dataset}
 Ireland.Prepared <- coronavirus %>%
@@ -90,33 +105,33 @@ Ireland.Prepared <- coronavirus %>%
   group_by(Country.Region, date ) %>%
   summarise(Total.Cases = sum(cases)) %>%
   right_join(FirstDates) %>%
-  mutate(Day = 0 + date - First.Date) %>%
+  mutate(Day  = seq_along(date)) %>%
   filter(Day >= 0) %>%
   arrange(Country.Region, Day) %>%
   mutate(Sum.Cases = cumsum(Total.Cases))
-
-Ireland.Prepared2 <- Ireland.Prepared %>%
-  filter(Sum.Cases >= 0) %>%
-  mutate(Day2  = seq_along(date))
 
 ```
 
 
 ```{r define prediction frame}
-pred.frame=tibble(Day2 = seq(1:37)) # 7 days ahead.
+pred.frame=tibble(Day = seq(1:38)) # 7 days ahead.
 ```
 
 # Predictions of log(accumulated deaths)
 
+## Linear model
+
 ```{r lm}
-Ireland2 <- Prepared2 %>% filter(Country.Region == 'Ireland')
-model.lm <- lm(data=Ireland2,
-               log10(Sum.Cases) ~ Day2)
+Ireland <- 
+model.lm <- lm(data=Prepared %>% filter(Country.Region == 'Ireland') %>% filter(Sum.Cases >0),
+               log10(Sum.Cases) ~ Day)
   model.lm.predicted <- predict(model.lm,pred.frame,se.fit=TRUE)
 ```
 
+## Exponential model
+
 ```{r nls}
-model.nls <- nls(Sum.Cases ~ exp(a + b * Day2),
+model.nls <- nls(Sum.Cases ~ exp(a + b * Day),
                  data = (Prepared2 %>% filter(Country.Region == 'Ireland')),
                  start = list(a = 1, b = 1))
   model.nls.predicted <- predict(model.nls,pred.frame)
@@ -134,11 +149,9 @@ model.nls <- nls(Sum.Cases ~ exp(a + b * Day2),
                 funs(str_replace(.,'%','.pct')))
 ```
 
-# Second model
+## Gompertz model
+
 ```{drc}
-library(drc)
-library(sandwich)
-library(lmtest)
 ## LL model
 
 drc.LL <- drm(Sum.Cases ~ Day2,

@@ -10,6 +10,9 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Purpose
+This file is run once a day to download the latest coronavirus data. The Irish data, manually collected each evening from the DoH website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) are downloaded separately, and used to correct the JHU data.
+
 ```{r setup, include=FALSE}
 rm(list=ls())
 library(devtools)
@@ -17,11 +20,14 @@ library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Update
+Load the latest accumulated international coronavirus data from GitHub
 
 ```{r load}
 install_github("RamiKrispin/coronavirus")
 ```
+
+Check to see if it worked.
 
 ```{r test}
 library(coronavirus)
@@ -29,6 +35,8 @@ data("coronavirus")
 glimpse(coronavirus)
 
 ```
+
+Do a quick table
 
 ```{r some tables}
 summary_df <- coronavirus %>% group_by(Country.Region, type) %>%
@@ -45,4 +53,4 @@ coronavirus %>%
   arrange(-confirmed)
 ```
 
-
+Stop
