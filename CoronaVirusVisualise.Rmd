@@ -125,7 +125,7 @@ pred.frame=tibble(Day = seq(1 : ( max(Model.Data$Day) + 10))) # 10 days ahead.
 
 ```
 
-# Predictions of log(accumulated deaths)
+# Predictions of log(accumulated cases)
 
 ## Linear model
 
@@ -240,19 +240,25 @@ ggplot(data=Prepared,aes(x=Day,y=log10(Sum.Cases),colour=Country.Region)) +
                  colour='red') +
   theme(legend.position="none")
 
+```
+
+## Plot 1 Ireland against EU  (mostly) 20 cases
+
+```{r}
+
 Prepared.20 <- Prepared %>%
   group_by(Country.Region) %>%
   filter(Sum.Cases > 20) %>%
   mutate(Day2 = seq_along(date))
 
 Prepared.20 <- Prepared.20 %>%
-  filter(Country.Region %in% c('Czechia', 'Hungary', 'France', 'Spain', 'US', 'United Kingdom','Ireland'))
+  filter(Country.Region %in% c('Czechia', 'Hungary', 'France', 'Spain', 'US', 'United Kingdom','Ireland', 'Norway', 'Denmark', 'Finland', 'Germany'))
 
-g <- ggplot(data=Prepared.30,
+g <- ggplot(data=Prepared.20,
        aes(x=Day2,y=Sum.Cases,colour=Country.Region)) +
   geom_path() +
-  geom_point(data = Prepared.30 %>% filter (Country.Region == "Ireland")) +
-  geom_text_repel(data = Prepared.30 %>%
+  geom_point(data = Prepared.20 %>% filter (Country.Region == "Ireland")) +
+  geom_text_repel(data = Prepared.20 %>%
                     filter(Day2 == max(Day2)),
                   aes(x=Day2+1.75, y=Sum.Cases, 
                       label=Country.Region), size=4) +
@@ -269,14 +275,14 @@ ggsave('images/Total_Observed_latest.png', g,
 
 ```
 
-# First plot - Ireland and predictions in context
+# Second plot - Ireland and predictions in context 50 cases
 
 ```{r plot2}
 Prepared2 <- Prepared  %>%
                     filter(Country.Region %in%
                              c("Ireland", "Italy", "Japan", "Korea, South",
                                "Netherlands", "Spain", "United Kingdom",
-                               "Singapore")                           )
+                               "Singapore"))
 
 
 Prepared2.50 <- Prepared2 %>%
@@ -310,7 +316,7 @@ g <- ggplot(data=Prepared2.50,
                       label=Country.Region),size=4) +
   geom_label_repel(data=Results.50 %>%
                      filter(Day == max(Day)),
-             aes(x=max(Results.50$Day2+2), y=0.7*max(Results.50$Sim.Mean),
+             aes(x=tail(Results.50$Day2,1)+2, y=0.6*tail(Results.50$Sim.Mean,1),
                        label='Predicted'),size=3,colour='pink') +
   scale_y_log10(labels=scales::comma) +
   scale_x_continuous() +
@@ -336,7 +342,7 @@ Prediction <- Results %>%
   mutate(Observed = Total.Cases) %>%
   mutate(Predicted = Daily.Cases.Gom) %>%
   mutate(Date = (Day -1) + ymd('2020-03-03')) %>%
-  filter(Day < 39)
+  filter(Day < 45)
 
 g <- ggplot(data = Prediction)  +
   geom_point(aes(x = Date, y = Observed),colour='red') +
