@@ -1,0 +1,175 @@
+---
+title: "HPSC data"
+author: "Anthony Staines"
+date: "10/04/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(pdftools)
+library(foreach)
+library(lubridate)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#
+
+```{r Read one}
+HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 24.03.2020_v1 - website version.pdf') %>%
+  readr::read_lines() %>%
+  tibble()
+HPSC_t <- HPSC_text[12:24,]
+names(HPSC_t) <- c('Text')
+HPSC_t
+
+HPSC <- HPSC_t %>%
+  mutate(Text = str_replace_all(Text,'     March',' March')) %>% # Replace excess spaces on 24/3/20
+  mutate(Text = str_replace_all(Text,'  ','|')) %>% # Replace two spaces with one |
+  mutate(Text = str_replace_all(Text,'\\| ','|')) %>% # Remove spaces after a |
+  mutate(Text = str_replace_all(Text,' \\|','|')) %>% # Remove spaces before a |
+  mutate(Text = str_replace_all(Text,'^\\|+','')) %>% # Remove all initial | characters
+  mutate(Text = str_replace_all(Text,'\\|+','|')) %>% # Replace multiple | with one |
+  mutate(Text = str_replace_all(Text,'\\*','')) %>% # Remove an * (for a footnote)
+  mutate(Text = str_replace_all(Text,',','')) %>% # Remove a comma
+  mutate(Text = str_replace_all(Text,'\\/',' or ')) %>% # Replace a / with an or
+  mutate(Text = str_replace_all(Text,'\\%','')) # Replace % with Pct.
+  
+  
+  write_csv(HPSC,'data/temp.csv')
+  
+  HPSC <- read_delim('data/temp.csv', delim='|',
+                     skip=1, na = c('-'),
+                     col_names = c('Characteristic','Number','Pct')) %>%
+    mutate(Date = dmy('08.04.2020'))
+  
+str(HPSC_t)
+str(HPSC)
+
+```
+
+
+```{r file list}
+Filenames <- list.files('HPSC',full.names = TRUE)
+Filedates <- Filenames %>%
+  str_extract(.,'((\\d+)[\\.](\\d+)[\\.](\\d{4}))') %>%
+  dmy()
+Files <- tibble(Filenames,Filedates) %>% arrange(Filedates)
+rm(Filenames,Filedates)
+```
+
+
+```{r Read Many}
+HPSC_total <- foreach (I = seq(1,length(Files$Filenames))) %do% {
+  print(Files$Filenames[I])
+  
+  HPSC_text <- pdf_text(Files$Filenames[I]) %>%
+  readr::read_lines() %>%
+  tibble()
+HPSC_text <- HPSC_text[11:24,]
+head(HPSC_text)
+
+names(HPSC_text) <- c('Text')
+
+HPSC <- HPSC_text %>%
+    mutate(Text = str_replace_all(Text,'     March',' March')) %>% # Replace excess spaces on 24/3/20
+  mutate(Text = str_replace_all(Text,'  ','|')) %>% # Replace two spaces with one |
+  mutate(Text = str_replace_all(Text,'\\| ','|')) %>% # Remove spaces after a |
+  mutate(Text = str_replace_all(Text,' \\|','|')) %>% # Remove spaces before a |
+  mutate(Text = str_replace_all(Text,'^\\|+','')) %>% # Remove all initial | characters
+  mutate(Text = str_replace_all(Text,'\\|+','|')) %>% # Replace multiple | with one |
+  mutate(Text = str_replace_all(Text,'\\*','')) %>% # Remove an * (for a footnote)
+  mutate(Text = str_replace_all(Text,',','')) %>% # Remove a comma
+  mutate(Text = str_replace_all(Text,'\\/',' or ')) %>% # Replace a / with an or
+  mutate(Text = str_replace_all(Text,'\\%','')) # Replace % with Pct.
+  
+write_csv(HPSC,'data/temp.csv')
+
+  
+HPSC <- read_delim('data/temp.csv', delim='|',
+                   skip=1, na = c('-'),
+                   col_names = c('Characteristic','Number','Pct')) %>%
+    mutate(Date = Files$Filedates[I]) %>%
+  mutate(Number = as.character(Number)) %>%
+  mutate(Pct = as.character(Pct))
+  
+print(HPSC)
+}
+
+```
+
+
+The report of MArch 27th (5th report at the moment) has the wrong applicable (record) date in the table, but the correct date in the text above the table. Fixed!
+
+```{r Date fixed}
+
+HPSC_total[[5]][4,1] <- 'Number of new cases 25 March'
+
+```
+
+# Merge into one file
+
+```{r}
+HPSC <- bind_rows(HPSC_total) %>%
+  filter(!(is.na(Number) & is.na(Pct))) %>%
+  filter(!((Characteristic == 'Page') | (Characteristic == 'Characteristic'))) 
+table(HPSC$Characteristic)
+
+HPSC <- HPSC %>%
+  mutate(ApplicableDate = 
+         ifelse(str_detect(Characteristic,'Number of new cases '),
+                           str_replace(Characteristic,'Number of new cases ',''),
+                           NA_character_)) %>%
+  mutate(Characteristic = 
+         ifelse(str_detect(Characteristic,'Number of new cases '),
+                           'Number of new cases',
+                           Characteristic)) %>%
+  mutate(Characteristic = 
+         ifelse(str_detect(Characteristic,'Number of cases in Healthcare workers'),
+                           'Number of cases in HCW',
+                           Characteristic)) %>%
+  mutate(ApplicableDate = ifelse(is.na(ApplicableDate),
+                                 ApplicableDate,
+                                 paste(ApplicableDate,' 2020'))) %>%
+  mutate(RecordDate = parse_date_time(ApplicableDate,orders = c('dby','bdy')))
+
+DatesFix <- HPSC %>%
+  select(Date,ApplicableDate,RecordDate) %>%
+  filter(!is.na(RecordDate))
+HPSC <- HPSC %>%
+  select(-ApplicableDate,-RecordDate) %>%
+  inner_join(DatesFix,by=c('Date'))
+
+table(HPSC$Characteristic)
+
+HH <- HPSC %>%
+  select(-Pct, -ApplicableDate) %>%
+  pivot_wider(names_from = Characteristic,values_from=Number)
+
+names(HH) <- c("Date", "RecordDate" , "Confirmed", "New", "Hospitalised", "ICU", "Deaths", "CFR", "Outbreaks", "OutbreakCases", "ImportedCases", "HCWCases", "AgeMedian", "AgeRange")
+
+HH <- HH %>%
+  select(-AgeRange) %>%
+  mutate_if(is.character, as.numeric)
+
+glimpse(HH)  
+```
+
+Everything, except the New Cases, the CFR, and the MedianAge, is a cumulative total, so we need the differences from Day 1.
+
+```{r Differences}
+HH$Confirmed
+diff(HH$Confirmed)
+
+HH.diff <- HH %>%
+  mutate_if(is.numeric,diff)
+
+
+HH.diff <- HH %>%
+  modify_if(is.numeric,~(. - lag(.))) %>%
+  mutate(New = HH$New, CFR = HH$CFR,AgeMedian = HH$AgeMedian)
+  
+```
+
