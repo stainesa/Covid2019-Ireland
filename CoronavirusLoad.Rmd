@@ -52,5 +52,29 @@ coronavirus %>%
               values_from = total_cases) %>%
   arrange(-confirmed)
 ```
+## Correct the Irish data
+The Irish data contain some errors in the JHU dataset, and are less up-to-date. We donwload the data manually from the website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) and add it to an excel file for each day
 
-Stop
+
+```{r Ireland}
+
+Ireland <- coronavirus %>%
+  filter(Country.Region == 'Ireland', type == 'confirmed') 
+
+# Manually edit to correct Ireland
+write_csv(Ireland,'data/Ireland.csv')
+Ireland.manual <- readxl::read_xlsx('data/Ireland.xlsx',
+                                    sheet = 'Ireland-manual')
+# Has DoH data added manually
+
+CC <- coronavirus %>%
+  filter(Country.Region != 'Ireland') %>%
+  rbind(Ireland.manual)
+
+Ireland_corrected <- coronavirus %>%
+  filter(Country.Region == 'Ireland', type == 'confirmed')
+
+save(CC, file='data/CC.Rdata', envir = .GlobalEnv)
+
+```
+

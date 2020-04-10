@@ -32,34 +32,15 @@ knitr::opts_chunk$set(echo = TRUE)
 The Irish data contain some errors in the JHU dataset, and are less up-to-date. We donwload the data manually from the website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) and add it to an excel file for each day
 
 
-```{r Ireland}
-
-Ireland <- coronavirus %>%
-  filter(Country.Region == 'Ireland', type == 'confirmed') 
-
-# Manually edit to correct Ireland
-write_csv(Ireland,'data/Ireland.csv')
-Ireland.manual <- readxl::read_xlsx('data/Ireland.xlsx',
-   sheet = 'Ireland-manual')
-# Has DoH data added manually
-
-coronavirus <- coronavirus %>%
-  filter(Country.Region != 'Ireland') %>%
-  rbind(Ireland.manual)
-
-Ireland_corrected <- coronavirus %>%
-  filter(Country.Region == 'Ireland', type == 'confirmed')
-
-```
-
 # Get daily cases
 
 ```{r}
-Infected <- Ireland_corrected$cases[39:70]
+Infected <- Ireland_corrected$cases[39:length(Ireland_corrected$cases)] # Lastest figures
+Infected
   
 #  c(45, 62, 121, 198, 291, 440, 571, 830, 1287, 1975, 2744, 4515, 5974, 7711, 9692, 11791, 14380, 17205, 20440)
 Day <- 1:(length(Infected))
-N <- 5800000 # population of mainland china
+N <- 5800000 # population of IReland
  
 old <- par(mfrow = c(1, 2))
 plot(Day, Infected, type ="b")
@@ -113,6 +94,7 @@ legend("bottomright", c("Susceptibles", "Infecteds", "Recovereds"), lty = 1, lwd
 fitw <- fit  %>% pivot_longer(c('S','I','R'),
                               names_to = 'Type', values_to = 'Number')
 fitw$Number[fitw$Number == 0] <- 0.5 
+
 ggplot() +
   geom_path(data=fitw,aes(y=Number,x=time, group=Type, colour=Type)) +
   geom_point(data=as_tibble(cbind(Infected,Day)), aes(y=Infected,x=Day)) +

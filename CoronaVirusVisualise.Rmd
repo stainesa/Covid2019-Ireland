@@ -13,7 +13,6 @@ editor_options:
 To prepare models for coronavirus incidence, and short term predictions, in Ireland
 
 ```{r setup, include=FALSE}
-rm(list=ls())
 library(coronavirus) # Coronavirus data
 library(propagate) # Errors in non-linear regression models
 library(ggrepel) # Nice labels
@@ -27,40 +26,21 @@ data("coronavirus")
 
 knitr::opts_chunk$set(echo = TRUE)
 ```
-## Correct the Irish data
-The Irish data contain some errors in the JHU dataset, and are less up-to-date. We donwload the data manually from the website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) and add it to an excel file for each day
 
-
-```{r Ireland}
-
-Ireland <- coronavirus %>%
-  filter(Country.Region == 'Ireland', type == 'confirmed') 
-
-# Manually edit to correct Ireland
-write_csv(Ireland,'data/Ireland.csv')
-Ireland.manual <- readxl::read_xlsx('data/Ireland.xlsx',
-                                    sheet = 'Ireland-manual')
-# Has DoH data added manually
-
-coronavirus <- coronavirus %>%
-  filter(Country.Region != 'Ireland') %>%
-  rbind(Ireland.manual)
-
-Ireland_corrected <- coronavirus %>%
-  filter(Country.Region == 'Ireland', type == 'confirmed') 
+```{r load data file}
+load('data/CC.Rdata')
 
 ```
-
 ## Identify the areas and the first date of a recorded confirmed case, and of a recorded death
 
 ```{r Country}
-Areas <- coronavirus %>%
+Areas <- CC %>%
   filter(type == 'confirmed') %>%
   group_by(Country.Region) %>%
   summarise(Total.Cases = sum(cases)) %>%
   arrange(desc(Total.Cases), Country.Region)
 
-FirstDates <- coronavirus %>%
+FirstDates <- CC %>%
   filter(type == 'confirmed') %>%
   group_by(Country.Region) %>%
   filter(cases > 0) %>%
@@ -69,7 +49,7 @@ FirstDates <- coronavirus %>%
   distinct()  %>%
   arrange(First.Date, Country.Region)
   
-DeathDates <- coronavirus %>%
+DeathDates <- CC %>%
   filter(type == 'death') %>%
   group_by(Country.Region) %>%
   filter(cases > 0) %>%
@@ -84,7 +64,7 @@ DeathDates <- coronavirus %>%
 
 ```{r General data set}
 
-Prepared <- coronavirus %>%
+Prepared <- CC %>%
   filter(type == 'confirmed') %>%
   group_by(Country.Region, date ) %>%
   summarise(Total.Cases = sum(cases)) %>% # Collapse over Province.State
@@ -100,7 +80,7 @@ Prepared <- coronavirus %>%
 ## Prepare an Ireland specific dataset
 
 ```{r Ireland specific dataset}
-Ireland.Prepared <- coronavirus %>%
+Ireland.Prepared <- CC %>%
   filter(Country.Region == 'Ireland') %>%
   filter(type == 'confirmed') %>%
   group_by(Country.Region, date ) %>%
