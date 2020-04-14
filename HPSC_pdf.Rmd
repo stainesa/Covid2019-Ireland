@@ -15,10 +15,10 @@ library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#
+# This is how to read one file
 
 ```{r Read one}
-HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 24.03.2020_v1 - website version.pdf') %>%
+HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 13.04.2020 _website.pdf') %>%
   readr::read_lines() %>%
   tibble()
 HPSC_t <- HPSC_text[12:24,]
@@ -38,18 +38,19 @@ HPSC <- HPSC_t %>%
   mutate(Text = str_replace_all(Text,'\\%','')) # Replace % with Pct.
   
   
-  write_csv(HPSC,'data/temp.csv')
+#  write_csv(HPSC,'data/temp.csv')
   
-  HPSC <- read_delim('data/temp.csv', delim='|',
+  HPSC <- read_delim(HPSC$Text, delim='|',
                      skip=1, na = c('-'),
                      col_names = c('Characteristic','Number','Pct')) %>%
-    mutate(Date = dmy('08.04.2020'))
+    mutate(Date = dmy('13.04.2020'))
   
 str(HPSC_t)
 str(HPSC)
 
 ```
 
+This is a list of all the pdfs in the HPSC directory, and the date each report was issued.
 
 ```{r file list}
 Filenames <- list.files('HPSC',full.names = TRUE)
@@ -60,6 +61,7 @@ Files <- tibble(Filenames,Filedates) %>% arrange(Filedates)
 rm(Filenames,Filedates)
 ```
 
+This loops over the list of file names, and reads all the files into a common data structure.
 
 ```{r Read Many}
 HPSC_total <- foreach (I = seq(1,length(Files$Filenames))) %do% {
@@ -71,9 +73,9 @@ HPSC_total <- foreach (I = seq(1,length(Files$Filenames))) %do% {
 HPSC_text <- HPSC_text[11:24,]
 head(HPSC_text)
 
-names(HPSC_text) <- c('Text')
+names(HPSC_text) <- c('Text') # Otherwise the name is '.', which is not a good choice!
 
-HPSC <- HPSC_text %>%
+HPSC <- HPSC_text %>% ## Empirically tidy up the content.
     mutate(Text = str_replace_all(Text,'     March',' March')) %>% # Replace excess spaces on 24/3/20
   mutate(Text = str_replace_all(Text,'  ','|')) %>% # Replace two spaces with one |
   mutate(Text = str_replace_all(Text,'\\| ','|')) %>% # Remove spaces after a |
@@ -85,7 +87,7 @@ HPSC <- HPSC_text %>%
   mutate(Text = str_replace_all(Text,'\\/',' or ')) %>% # Replace a / with an or
   mutate(Text = str_replace_all(Text,'\\%','')) # Replace % with Pct.
   
-write_csv(HPSC,'data/temp.csv')
+write_csv(HPSC,'data/temp.csv') # Can't figure how to read_delim from a tibble?
 
   
 HPSC <- read_delim('data/temp.csv', delim='|',
@@ -101,7 +103,7 @@ print(HPSC)
 ```
 
 
-The report of MArch 27th (5th report at the moment) has the wrong applicable (record) date in the table, but the correct date in the text above the table. Fixed!
+The report of March 27th (5th report at the moment) has the wrong applicable (record) date in the table, but the correct date in the text above the table. Fixed!
 
 ```{r Date fixed}
 
@@ -163,9 +165,8 @@ Everything, except the New Cases, the CFR, and the MedianAge, is a cumulative to
 HH$Confirmed
 diff(HH$Confirmed)
 
-HH.diff <- HH %>%
-  mutate_if(is.numeric,diff)
-
+#HH.diff <- HH %>% # Does not work
+#  mutate_if(is.numeric,diff)
 
 HH.diff <- HH %>%
   modify_if(is.numeric,~(. - lag(.))) %>%
