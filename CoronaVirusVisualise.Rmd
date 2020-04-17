@@ -24,7 +24,7 @@ library(tidyverse)
 
 data("coronavirus")
 
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```
 
 ```{r load data file}
@@ -142,7 +142,7 @@ summary(model.nls)
 
 ## LL model
 
-```{drc LL}
+```{r drc LL}
 ## LL model
 
 drc.LL <- drm(Sum.Cases ~ Day,

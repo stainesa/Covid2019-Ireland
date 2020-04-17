@@ -2,8 +2,10 @@
 title: "HPSC data"
 author: "Anthony Staines"
 date: "10/04/2020"
-output: html_document
-editor_options: 
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -12,7 +14,7 @@ library(pdftools)
 library(foreach)
 library(lubridate)
 library(tidyverse)
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```
 
 # This is how to read one file
