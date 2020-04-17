@@ -71,7 +71,7 @@ CC <- coronavirus %>%
   filter(Country.Region != 'Ireland') %>%
   rbind(Ireland.manual)
 
-Ireland_corrected <- coronavirus %>%
+Ireland_corrected <- CC %>%
   filter(Country.Region == 'Ireland', type == 'confirmed')
 
 save(CC, file='data/CC.Rdata', envir = .GlobalEnv)

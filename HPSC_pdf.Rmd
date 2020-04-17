@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # This is how to read one file
 
 ```{r Read one}
-HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 13.04.2020 _website.pdf') %>%
+HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 15.04.2020_website.pdf') %>%
   readr::read_lines() %>%
   tibble()
 HPSC_t <- HPSC_text[12:24,]
@@ -26,7 +26,8 @@ names(HPSC_t) <- c('Text')
 HPSC_t
 
 HPSC <- HPSC_t %>%
-  mutate(Text = str_replace_all(Text,'     March',' March')) %>% # Replace excess spaces on 24/3/20
+  mutate(Text = str_replace_all(Text,'     March',' March')) %>% # Replace excess spaces on 24/3/2
+  mutate(Text = str_replace(Text,'(?<=\\d) (?=\\d)', '  ')) %>% # on 15/4/2020 only one space seprated the numeric columns
   mutate(Text = str_replace_all(Text,'  ','|')) %>% # Replace two spaces with one |
   mutate(Text = str_replace_all(Text,'\\| ','|')) %>% # Remove spaces after a |
   mutate(Text = str_replace_all(Text,' \\|','|')) %>% # Remove spaces before a |
@@ -43,11 +44,12 @@ HPSC <- HPSC_t %>%
   HPSC <- read_delim(HPSC$Text, delim='|',
                      skip=1, na = c('-'),
                      col_names = c('Characteristic','Number','Pct')) %>%
-    mutate(Date = dmy('13.04.2020'))
+    mutate(Date = dmy('15.04.2020'))
   
 str(HPSC_t)
 str(HPSC)
 
+HPSC
 ```
 
 This is a list of all the pdfs in the HPSC directory, and the date each report was issued.
@@ -119,30 +121,40 @@ HPSC <- bind_rows(HPSC_total) %>%
   filter(!((Characteristic == 'Page') | (Characteristic == 'Characteristic'))) 
 table(HPSC$Characteristic)
 
+glimpse(HPSC)
+
 HPSC <- HPSC %>%
   mutate(ApplicableDate = 
          ifelse(str_detect(Characteristic,'Number of new cases '),
-                           str_replace(Characteristic,'Number of new cases ',''),
-                           NA_character_)) %>%
+                str_replace(Characteristic,'Number of new cases ',''),
+                NA_character_)) %>%
   mutate(Characteristic = 
          ifelse(str_detect(Characteristic,'Number of new cases '),
                            'Number of new cases',
                            Characteristic)) %>%
   mutate(Characteristic = 
-         ifelse(str_detect(Characteristic,'Number of cases in Healthcare workers'),
+         ifelse(str_detect(Characteristic,
+                           'Number of cases in Healthcare workers'),
                            'Number of cases in HCW',
                            Characteristic)) %>%
   mutate(ApplicableDate = ifelse(is.na(ApplicableDate),
                                  ApplicableDate,
                                  paste(ApplicableDate,' 2020'))) %>%
-  mutate(RecordDate = parse_date_time(ApplicableDate,orders = c('dby','bdy')))
+  mutate(RecordDate = parse_date_time(ApplicableDate,
+                                      orders = c('dby','bdy'))) %>%
+  mutate(RecordDate = as_date(RecordDate))
+
+glimpse(HPSC)
 
 DatesFix <- HPSC %>%
   select(Date,ApplicableDate,RecordDate) %>%
-  filter(!is.na(RecordDate))
+  filter(!is.na(RecordDate)) # Add the correct dates to every event.
+
 HPSC <- HPSC %>%
   select(-ApplicableDate,-RecordDate) %>%
   inner_join(DatesFix,by=c('Date'))
+
+glimpse(HPSC)
 
 table(HPSC$Characteristic)
 
@@ -172,5 +184,43 @@ HH.diff <- HH %>%
   modify_if(is.numeric,~(. - lag(.))) %>%
   mutate(New = HH$New, CFR = HH$CFR,AgeMedian = HH$AgeMedian)
   
+```
+
+```{r}
+
+g <- ggplot(data=HH.diff,aes(x=RecordDate, y=Hospitalised)) +
+  geom_point(colour='blue') +
+  geom_smooth(color='grey',fill='pink',alpha=0.2) +
+  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-14'))) +
+  ylab('Hospital admissions') + xlab('Date') +
+  ggtitle('HPSC data on hospitalisations') +
+  theme_grey(base_size = 22)
+g
+ggsave('images/HPSC_Hospitals.png',g,
+       units='cm', dpi=600, width=21, height=15)
+
+
+g <- ggplot(data=HH.diff,aes(x=RecordDate, y=Deaths)) +
+  geom_point(colour='blue') +
+  geom_smooth(color='grey',fill='pink',alpha=0.2) +
+  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-14'))) +
+  ggtitle('HPSC data on deaths') +
+  theme_grey(base_size = 22) 
+g
+ggsave('images/HPSC_Deaths.png',g,
+       units='cm', dpi=600, width=21, height=15)
+
+
+g <- ggplot(data=HH.diff,aes(x=RecordDate, y=ICU)) +
+  geom_point(colour='blue') +
+  geom_smooth(color='grey',fill='pink',alpha=0.2) +
+  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-14'))) +
+  ylab('ICU admissions') + xlab('Date') +
+  ggtitle('HPSC data on ICU admissions') +
+  theme_grey(base_size = 22) 
+g
+ggsave('images/HPSC_ICU.png',g,
+       units='cm', dpi=600, width=21, height=15)
+
 ```
 

@@ -364,7 +364,7 @@ g <- ggplot(data = Prediction)  +
   geom_ribbon(aes(x=Date, ymin=Daily.Deaths.Lower, ymax=Daily.Deaths.Upper),
             colour='blue', fill='lightblue', alpha=0.3) +
   geom_point(aes(x = Date, y = Predicted),colour='blue',alpha=0.4) +
-  ylab('Daily reported cases') +
+  ylab('Daily reported deaths') +
   ggtitle('Reported daily deaths from COVID-19 infection',
           subtitle = 'Observed and predicted') +
   theme_grey(base_size = 22)  +

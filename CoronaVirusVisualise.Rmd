@@ -321,8 +321,7 @@ Prediction <- Results %>%
   mutate(Daily.Cases.Upper = Upper - lag(Upper)) %>%
   mutate(Observed = Total.Cases) %>%
   mutate(Predicted = Daily.Cases.Gom) %>%
-  mutate(Date = (Day -1) + ymd('2020-03-03')) %>%
-  filter(Day < 45)
+  mutate(Date = (Day -1) + ymd('2020-03-03')) 
 
 g <- ggplot(data = Prediction)  +
   geom_point(aes(x = Date, y = Observed),colour='red') +
