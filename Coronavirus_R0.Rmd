@@ -1,0 +1,392 @@
+---
+title: "R0"
+author: "Anthony Staines"
+date: "15/04/2020"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To estimate R0 by several methods for the CV outbreaks.
+
+```{r setup, include=FALSE}
+library(coronavirus) # Coronavirus data
+library(R0)
+library(propagate) # Errors in non-linear regression models
+library(ggrepel) # Nice labels
+library(lubridate) # Sane date handling
+library(drc)
+library(sandwich)
+library(lmtest)
+library(tidyverse)
+
+data("coronavirus")
+
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+```
+
+# Load the prepared data with the Irish data manually corrected
+
+```{r load data file}
+load('data/CC.Rdata')
+
+```
+
+# R0 by several means
+
+```{r Ireland}
+
+Incidence <- CC %>%
+  filter(type == 'confirmed') %>%
+  filter(Country.Region == 'Ireland') %>%
+  slice(42:n()) %>%
+  select(date,cases)
+
+LastDate = nrow(Incidence)
+FirstDate = as.integer(1)
+
+
+mGT<-generation.time("gamma", c(4, 5))
+
+estR0 <- estimate.R(Incidence$cases, GT = mGT, t=Incidence$date,
+                    begin=FirstDate, end=LastDate,
+                    methods=c("EG", "ML", "TD", "AR", "SB"),
+                    pop.size=4000000, nsim=1000)
+
+  estR0
+plotfit(estR0)
+```
+
+## Single R0
+
+These three methods calculate a common R0 for the whole set of data
+
+### Exponential growth model
+
+```{r EG}
+estR0.EG <- est.R0.EG(Incidence$cases, GT = mGT, t=Incidence$date,
+                      begin=FirstDate, end=LastDate,
+                      methods=c("EG"),
+                      pop.size=4000000, nsim=1000)
+#  View(estR0.EG)
+  estR0.EG
+  plot(estR0.EG)
+  
+```
+
+This asssumes that the infection is still in the exponential phase, and is not likely to be true after the first public health response
+
+### Maximum likelihood model
+
+```{r ML}
+estR0.ML <- est.R0.ML(Incidence$cases, GT = mGT, t=Incidence$date,
+                      begin=FirstDate, end=LastDate,
+                      methods=c("ML"),
+                      pop.size=4000000, nsim=1000)
+  estR0.ML
+  plot(estR0.ML)
+```
+
+This fits a maximum likelihood model to the data. This is a good average across the observed time.
+
+## Attack rate
+
+```{r AR}
+estR0.AR <- est.R0.AR(AR=0.05,Incidence$cases, GT = mGT, t=Incidence$date,
+                      begin=FirstDate, end=LastDate,
+                      methods=c("AR"),
+                      pop.size=4000000, nsim=1000)
+  estR0.AR
+  plot(estR0.AR)
+```
+
+This calculates R0 from the attack rate. It's pretty useless outside a closed setting e.g. a cruise ship or the like.
+
+## Time varying R0
+
+These two models allow the R0 to vary over time and permit the monitoring of response to public ehalth control measures.
+
+### Time dependency model
+
+```{r TD}
+estR0.TD <- est.R0.TD(Incidence$cases, GT = mGT, t=Incidence$date,
+                      begin=FirstDate, end=LastDate,
+                      methods=c("TD"),
+                      pop.size=4000000, nsim=1000)
+  estR0.TD
+  plot(estR0.TD)
+```
+
+### Sequential Bayesian model
+
+```{r SB}
+estR0.SB <- est.R0.SB(Incidence$cases, GT = mGT, t=Incidence$date,
+                      begin=FirstDate, end=LastDate,
+                      pop.size=4000000, nsim=1000, force.prior=4)
+  estR0.SB
+  plot(estR0.SB)
+```
+
+# Prepare data for graphs
+
+The R0 package produces data in a variety of forms, with diffferent names, and different structures for each method used. Quite a bit of data preparation is required.
+
+```{r Data preparation functions}
+R0.EGf <- function(estR0.EG) {
+  return(c(Lower = estR0.EG[['conf.int']][1],
+           R0 = estR0.EG[['R']],
+           Upper=estR0.EG[['conf.int']][2],
+           Type='EG'))
+}
+R0.EG <- R0.EGf(estR0.EG)
+
+R0.MLf <- function(estR0.EG) {
+  return(c(Lower = estR0.ML[['conf.int']][1],
+           R0 = estR0.ML[['R']],
+           Upper=estR0.ML[['conf.int']][2],
+           Type='ML'))
+}
+R0.ML <- R0.MLf(estR0.ML)
+
+R0.ARf <- function(estR0.EG) {
+  return(c(Lower = estR0.AR[['conf.int']][1],
+           R0 = estR0.AR[['R']],
+           Upper=estR0.AR[['conf.int']][2],
+           Type='AR'))
+}
+R0.AR <- R0.ARf(estR0.ML)
+
+R0.TDf <- function(estR0.TD) {
+  return(tibble(R0 = estR0.TD[['R']],
+                Date = names(estR0.TD[['R']]),
+                Lower = estR0.TD[['conf.int']][['lower']],
+                Upper = estR0.TD[['conf.int']][['upper']]) %>%
+  select(Date,Lower,R0,Upper) %>%
+  mutate(Type='TD') %>%
+  mutate(Date = ymd(Date)) %>%
+  filter(R0 > 0))
+}
+R0.TD <- R0.TDf(estR0.TD)
+
+
+R0.SBf <- function(estRO.SB) {
+  return(tibble(R0 = estR0.SB[['R']],
+                Date = head(estR0.SB[['epid']][['t']],-1), # Remove last element
+                Lower = estR0.SB[['conf.int']][['CI.lower.']],
+                Upper = estR0.SB[['conf.int']][['CI.upper.']]) %>%
+  select(Date,Lower,R0,Upper) %>%
+  mutate(Type='SB'))
+}
+R0.SB <- R0.SBf(estR0.SB)
+
+
+```
+
+# Sensitivity analyses
+
+## Sensitivty to Generation time
+
+```{r Sensitivity analysis generation time}
+S1 <- sa.GT(incid=Incidence$cases,GT.type='gamma',
+            GT.mean.range=c(3,4,5,6,7,8,9), GT.sd.range = c(1,3,5,7),
+            est.method='ML', t=Incidence$date)
+
+plot(x=S1[,"GT.Mean"], xlab="mean GT (days)", y=S1[,"R"], ylim=c(1.2, 2.1), ylab="R0 (95%CI)", type="p", pch=19, col="black", main="Sensitivity of R0 to mean GT")
+
+arrows(x0=as.numeric(S1[,"GT.Mean"]), y0=as.numeric(S1[,"CI.lower"]), 
+       y1=as.numeric(S1[,"CI.upper"]), angle=90, code=3, col="black", length=0.05)
+```
+
+This shows how estimates of the mean of the GT affect the global R0, using the ML method. There is significant sensitivity, with higher averaged R0 estimates as the generation time rises.
+
+## Sensitivity to Calendar time
+
+```{r Sensitivity analysis calendar time}
+S2 <- sa.time(incid=Incidence$cases,GT.type='gamma',
+            mGT, begin=1:15,end=29:43,
+            est.method='ML', t=Incidence$date)
+
+plot(S2, what=c("heatmap"))
+plot(S2, what=c("criterion"))
+
+```
+The estimated R0 rises (darker red) as the amount of time considered falls. This is to be expected and reflects the real change in R0 caross the time of this epidemic.
+
+## Sensitivity of time varying estimates to generation time
+
+```{r Sensitivty analysis Generation time}
+#Range of values of gamma parameters for testing.
+GT.mean.range=c(3,4,5,6,7,8,9); GT.sd.range = c(1,3,5,7)
+
+GT.parameters <- expand.grid(Mean = GT.mean.range,
+                             SD = GT.sd.range) %>%
+  arrange(Mean,SD) # Ordered by mean, and then SD within mean.
+
+GTf <- function(gamma.mean,gamma.sd) {
+  generation.time(type='gamma',
+                  val = c(gamma.mean,gamma.sd))
+} # Function to facilitate mapping with a fixed model - the gamma model
+
+#mGT <- GTf(3,3) #Test
+#mGT
+#mGT <- GTf(GT.parameters$Mean[1],GT.parameters$SD[1]) # More tests
+#mGT
+
+mGTList <- pmap(list(GT.parameters$Mean, # List of mGT objects
+                    GT.parameters$SD),
+               GTf) # Covers the range of GT parameters
+#mGTList #Test
+
+# Test function to do calculation
+#R0.TD <- est.R0.TD(epid = Incidence$cases, GT = mGTList[[1]],
+#                   t=Incidence$date,
+#                      begin=FirstDate, end=LastDate,
+#                      methods=c("TD"),
+#                      pop.size=4000000, nsim=10000)
+#
+#R0.TD
+#R0.TD <- est.R0.TD(epid = Incidence$cases, GT = mGTList[[2]],
+#                   t=Incidence$date,
+#                      begin=FirstDate, end=LastDate,
+#                      methods=c("TD"),
+#                      pop.size=4000000, nsim=10000)
+#R0.TD
+
+# Check the contents of the generation time list
+# map(mGTList,print) # Test
+
+# Calculate a set of R0.TD objects to hold the time varying R0
+R0_TD <- map(mGTList, est.R0.TD, 
+                      epid = Incidence$cases, t=Incidence$date,
+                      begin=FirstDate, end=LastDate,
+                      methods=c("TD"),
+                      pop.size=4000000, nsim=10000)
+
+# Function to recover the mean and SD used in the GT simulation
+Retrieve_Mean_and_SD <- function(R0_TD) {
+  Result <- paste0('Mean: ', round(R0_TD$GT$mean,1),
+                   ' SD: ',round(R0_TD$GT$sd,1))
+}
+
+R0_TD_msd <- map_chr(R0_TD, Retrieve_Mean_and_SD) # Pull out the Means and SD's as characters
+
+# R0.TDf is the function (defined above) that shifts the data for one R0.TD object into a tribble for graphing
+R0_TD_df <- map(R0_TD, R0.TDf) # Transform data to correct format!!
+
+# Function to do one plot
+TD_plot <- function(data) {
+  ggplot(data,
+       aes(x = Date, y = R0,
+           ymin = Lower,  ymax = Upper)) +
+  geom_smooth(span=0.25,colour='grey',alpha=0.1) +
+  geom_hline(yintercept = 1,colour='red',linetype=5) +
+  geom_ribbon(aes(fill=Type),colour='grey',alpha=0.3) +
+  geom_point() +
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m",
+               limits=c(as_date('2020-03-03'),as_date('2020-04-14'))) +
+  coord_cartesian(ylim=c(0,7)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle=-45, hjust=0)) + 
+  theme(legend.position="none")
+}
+
+# Printof the datframes to check
+# map(R0_TD_df, print)# test
+
+# Prepare the plots
+plots <- map(R0_TD_df, TD_plot)
+
+#Put them on one sheet
+g <- cowplot::plot_grid(plotlist = plots,ncol=4,
+                        labels=R0_TD_msd, label_size = 10)
+g # Doesn't work brilliantly
+
+# Save as a large png file
+ggsave('images/Sensitivity_to_GT.png', g,
+       dpi=600, units='cm', width=20, height=40)
+```
+
+Across a wide range of generation time means (3 days to 9 days), and standard deviations (1 day to 7 days), the R0 behave qualitatively in the same way. As expected, at higher mean generation times, the estimated R0 is higher. The range of the final R0 is from 1.1 to 1.5 across all the combinations tested.
+
+```{r combine estimates}
+Singles <- as_tibble(rbind(R0.EG,R0.ML,R0.AR)) %>%
+  mutate(Lower = as.numeric(Lower),
+         R0 = as.numeric(R0),
+         Upper = as.numeric(Upper))
+glimpse(Singles)
+
+
+glimpse(R0.TD)
+glimpse(R0.SB)
+
+Multiples <- rbind(R0.TD, R0.SB)
+
+glimpse(Multiples)
+```
+
+# Production graphs
+
+```{r Production graphs}
+
+gs <- ggplot(Singles,aes(x=Type, y=R0,ymin=Lower,ymax=Upper,colour=Type)) +
+  geom_pointrange() +
+  xlab('Estimation method') + ylab('Estimated R0') +
+  ggtitle('Point estimates') +
+  ylim(0.9,1.6) + geom_hline(yintercept = 1,colour='red',linetype=5) +
+  theme_classic(base_size = 25)  +
+  theme(axis.text.x = element_text(angle=-45, hjust=0))+ 
+  theme(legend.position="none")
+gs
+ggsave('images/R0_Constant.png', gm,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+These are three common ways of calculating an average R0 across an epidemic. These are based on the attack rate (AR), on the assumption that the real epidemic is undergoing exponential growth (EG), and a maxiumum likelihood approach (ML).
+
+The first of these only really makes sense if almost an entire population is exposed - for example on a cruise ship. The second is fine, as long as the epidemic is actually predicted by an exponential model. This is often true early in an outbreak, but any action to reduce risk tends to flatten exponential growth. The third probably makes the most sense, if it is desired to have a single number to represent an epidemic.
+
+
+```{r time varying}
+# Label for facets
+labels <- c(TD = "Time-Dependent", SB = "Sequential Bayesian")
+col_ours <- c('TD' = '#1f78b4',SB = '#fc8d62')
+
+gm <- ggplot(Multiples,
+       aes(x=Date, group = Type, colour = Type,
+           ymin=Lower, y=R0,ymax=Upper)) +
+  geom_smooth(span=0.25,colour='grey',alpha=0.1) +
+  geom_hline(yintercept = 1,colour='red',linetype=5) +
+  geom_ribbon(aes(fill=Type),colour='grey',alpha=0.3) +
+  geom_point() +
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  ggtitle('Time-varying R0')+
+  scale_colour_manual(values = col_ours) +
+  scale_fill_manual(values = col_ours) +
+  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m",
+               limits=c(as_date('2020-03-03'),as_date('2020-04-14'))) +
+  coord_cartesian(ylim=c(0,7)) +
+  facet_wrap(~Type, labeller=labeller(Type = labels),ncol = 1) +
+  theme_classic(base_size = 25) +
+  theme(axis.text.x = element_text(angle=-45, hjust=0)) + 
+  theme(legend.position="none")
+gm
+ggsave('images/R0_Time_varying.png', gm,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+From my persepctive the time varying graph is the msot useful. Our R0 fell from something like 4 or 6, and fell very steadily to about 1.1. Better data, specifically using dates of testing (or symptom start) would allow a more refined analysis, however there is no indication from the case numbers that R0 is falling below 1 at the moment.
+
+# Arrange the two plots side by side.
+
+```{r}
+g <- ggpubr::ggarrange(gs,gm,nrow=1)
+g
+ggsave('images/R0_comparative.png', g,
+       units = 'cm', dpi = 600, width = 21, height = 20)
+rm(gs,gm)
+```
+
