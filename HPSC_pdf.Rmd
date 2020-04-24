@@ -20,10 +20,10 @@ knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 # This is how to read one file
 
 ```{r Read one}
-HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 15.04.2020_website.pdf') %>%
+HPSC_text <- pdf_text('HPSC/COVID-19 Epidemiology report for NPHET 28.03.2020v1.0_website version.pdf') %>%
   readr::read_lines() %>%
   tibble()
-HPSC_t <- HPSC_text[12:24,]
+HPSC_t <- HPSC_text[11:24,]
 names(HPSC_t) <- c('Text')
 HPSC_t
 
@@ -46,7 +46,7 @@ HPSC <- HPSC_t %>%
   HPSC <- read_delim(HPSC$Text, delim='|',
                      skip=1, na = c('-'),
                      col_names = c('Characteristic','Number','Pct')) %>%
-    mutate(Date = dmy('15.04.2020'))
+    mutate(Date = dmy('16.04.2020'))
   
 str(HPSC_t)
 str(HPSC)
@@ -74,7 +74,7 @@ HPSC_total <- foreach (I = seq(1,length(Files$Filenames))) %do% {
   HPSC_text <- pdf_text(Files$Filenames[I]) %>%
   readr::read_lines() %>%
   tibble()
-HPSC_text <- HPSC_text[11:24,]
+HPSC_text <- HPSC_text[10:24,]
 head(HPSC_text)
 
 names(HPSC_text) <- c('Text') # Otherwise the name is '.', which is not a good choice!
@@ -91,10 +91,10 @@ HPSC <- HPSC_text %>% ## Empirically tidy up the content.
   mutate(Text = str_replace_all(Text,'\\/',' or ')) %>% # Replace a / with an or
   mutate(Text = str_replace_all(Text,'\\%','')) # Replace % with Pct.
   
-write_csv(HPSC,'data/temp.csv') # Can't figure how to read_delim from a tibble?
-
+#write_csv(HPSC,'data/temp.csv') # Can't figure how to read_delim from a tibble?
+#'data/temp.csv'
   
-HPSC <- read_delim('data/temp.csv', delim='|',
+HPSC <- read_delim(HPSC$Text, delim='|',
                    skip=1, na = c('-'),
                    col_names = c('Characteristic','Number','Pct')) %>%
     mutate(Date = Files$Filedates[I]) %>%
@@ -106,55 +106,33 @@ print(HPSC)
 
 ```
 
-
-The report of March 27th (5th report at the moment) has the wrong applicable (record) date in the table, but the correct date in the text above the table. Fixed!
-
-```{r Date fixed}
-
-HPSC_total[[5]][4,1] <- 'Number of new cases 25 March'
-
-```
-
 # Merge into one file
 
 ```{r}
-HPSC <- bind_rows(HPSC_total) %>%
-  filter(!(is.na(Number) & is.na(Pct))) %>%
-  filter(!((Characteristic == 'Page') | (Characteristic == 'Characteristic'))) 
+HPSC <- bind_rows(HPSC_total) %>%  # one row per row in tables
+  filter(!(is.na(Number) & is.na(Pct))) %>% # No numeric data in row
+  filter(Characteristic != "Page") %>%
+  filter(Characteristic != "Characteristic") # Irrelevant rows
+
 table(HPSC$Characteristic)
 
 glimpse(HPSC)
 
+# Add the date to which the report refers.
 HPSC <- HPSC %>%
   mutate(ApplicableDate = 
-         ifelse(str_detect(Characteristic,'Number of new cases '),
-                str_replace(Characteristic,'Number of new cases ',''),
-                NA_character_)) %>%
+         Date -2) %>% # Date of events - two days before report date
   mutate(Characteristic = 
-         ifelse(str_detect(Characteristic,'Number of new cases '),
-                           'Number of new cases',
+         ifelse(str_detect(Characteristic,"Number of new cases "),
+                           "Number of new cases",
                            Characteristic)) %>%
   mutate(Characteristic = 
          ifelse(str_detect(Characteristic,
-                           'Number of cases in Healthcare workers'),
-                           'Number of cases in HCW',
+                           "Number of cases in Healthcare workers"),
+                           "Number of cases in HCW",
                            Characteristic)) %>%
-  mutate(ApplicableDate = ifelse(is.na(ApplicableDate),
-                                 ApplicableDate,
-                                 paste(ApplicableDate,' 2020'))) %>%
-  mutate(RecordDate = parse_date_time(ApplicableDate,
-                                      orders = c('dby','bdy'))) %>%
-  mutate(RecordDate = as_date(RecordDate))
-
-glimpse(HPSC)
-
-DatesFix <- HPSC %>%
-  select(Date,ApplicableDate,RecordDate) %>%
-  filter(!is.na(RecordDate)) # Add the correct dates to every event.
-
-HPSC <- HPSC %>%
-  select(-ApplicableDate,-RecordDate) %>%
-  inner_join(DatesFix,by=c('Date'))
+  mutate(Characteristic = trimws(Characteristic)) %>%
+  mutate(RecordDate = ApplicableDate)
 
 glimpse(HPSC)
 
@@ -162,7 +140,7 @@ table(HPSC$Characteristic)
 
 HH <- HPSC %>%
   select(-Pct, -ApplicableDate) %>%
-  pivot_wider(names_from = Characteristic,values_from=Number)
+  pivot_wider(names_from = Characteristic, values_from=Number)
 
 names(HH) <- c("Date", "RecordDate" , "Confirmed", "New", "Hospitalised", "ICU", "Deaths", "CFR", "Outbreaks", "OutbreakCases", "ImportedCases", "HCWCases", "AgeMedian", "AgeRange")
 
@@ -179,9 +157,6 @@ Everything, except the New Cases, the CFR, and the MedianAge, is a cumulative to
 HH$Confirmed
 diff(HH$Confirmed)
 
-#HH.diff <- HH %>% # Does not work
-#  mutate_if(is.numeric,diff)
-
 HH.diff <- HH %>%
   modify_if(is.numeric,~(. - lag(.))) %>%
   mutate(New = HH$New, CFR = HH$CFR,AgeMedian = HH$AgeMedian)
@@ -193,7 +168,7 @@ HH.diff <- HH %>%
 g <- ggplot(data=HH.diff,aes(x=RecordDate, y=Hospitalised)) +
   geom_point(colour='blue') +
   geom_smooth(color='grey',fill='pink',alpha=0.2) +
-  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-14'))) +
+  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-24'))) +
   ylab('Hospital admissions') + xlab('Date') +
   ggtitle('HPSC data on hospitalisations') +
   theme_grey(base_size = 22)
@@ -205,7 +180,7 @@ ggsave('images/HPSC_Hospitals.png',g,
 g <- ggplot(data=HH.diff,aes(x=RecordDate, y=Deaths)) +
   geom_point(colour='blue') +
   geom_smooth(color='grey',fill='pink',alpha=0.2) +
-  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-14'))) +
+  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-24'))) +
   ggtitle('HPSC data on deaths') +
   theme_grey(base_size = 22) 
 g
@@ -216,7 +191,7 @@ ggsave('images/HPSC_Deaths.png',g,
 g <- ggplot(data=HH.diff,aes(x=RecordDate, y=ICU)) +
   geom_point(colour='blue') +
   geom_smooth(color='grey',fill='pink',alpha=0.2) +
-  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-14'))) +
+  scale_x_date(limits=c(as_date('2020-03-21'),as_date('2020-04-24'))) +
   ylab('ICU admissions') + xlab('Date') +
   ggtitle('HPSC data on ICU admissions') +
   theme_grey(base_size = 22) 
