@@ -10,7 +10,8 @@ editor_options:
 ---
 
 #Purpose
-To prepare models for coronavirus incidence, and short term predictions, in Ireland
+
+To prepare SIR models for coronavirus incidence, and short term predictions, in Ireland
 
 ```{r setup, include=FALSE}
 rm(list=ls())

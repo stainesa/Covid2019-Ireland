@@ -9,6 +9,8 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Setup
+
 ```{r setup, include=FALSE}
 library(pdftools)
 library(foreach)

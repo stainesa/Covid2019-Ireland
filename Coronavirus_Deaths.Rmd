@@ -52,6 +52,8 @@ Ireland_corrected <- coronavirus %>%
 
 ## Identify the areas and the first date of a recorded death case, and of a recorded death
 
+Need to check do we still need this?
+
 ```{r Country}
 Areas <- coronavirus %>%
   filter(type == 'death') %>%

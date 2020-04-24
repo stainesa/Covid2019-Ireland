@@ -31,7 +31,7 @@ knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 load('data/CC.Rdata')
 
 ```
-## Identify the areas and the first date of a recorded confirmed case, and of a recorded death
+## Identify the areas and the first date of a recorded confirmed case, and of the first recorded death
 
 ```{r Country}
 Areas <- CC %>%

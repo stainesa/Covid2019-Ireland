@@ -10,6 +10,7 @@ editor_options:
 ---
 
 #Purpose
+
 To estimate R0 by several methods for the CV outbreaks.
 
 ```{r setup, include=FALSE}
