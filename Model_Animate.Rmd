@@ -1,7 +1,7 @@
 ---
-title: "Coronavirus Time"
+title: "Modelling over time"
 author: "Anthony Staines"
-date: "13/03/2020"
+date: "29/04/2020"
 output:
   pdf_document: default
   html_document: default
@@ -10,7 +10,7 @@ editor_options:
 ---
 
 #Purpose
-To prepare models for coronavirus incidence, and short term predictions, in Ireland
+To look at changes over time in the Irish models, as new data emerge.
 
 ```{r setup, include=FALSE}
 library(coronavirus) # Coronavirus data
@@ -24,6 +24,8 @@ library(tidyverse)
 
 data("coronavirus")
 
+devtools::install_github("tidymodels/broom")
+
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```
 
@@ -31,114 +33,46 @@ knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 load('data/CC.Rdata')
 
 ```
+
 ## Identify the areas and the first date of a recorded confirmed case, and of the first recorded death
-
-```{r Country}
-Areas <- CC %>%
-  filter(type == 'confirmed') %>%
-  group_by(Country.Region) %>%
-  summarise(Total.Cases = sum(cases)) %>%
-  arrange(desc(Total.Cases), Country.Region)
-
-FirstDates <- CC %>%
-  filter(type == 'confirmed') %>%
-  group_by(Country.Region) %>%
-  filter(cases > 0) %>%
-  filter(date == min(date)) %>%
-  select(Country.Region, First.Date = date) %>%
-  distinct()  %>%
-  arrange(First.Date, Country.Region)
-  
-DeathDates <- CC %>%
-  filter(type == 'death') %>%
-  group_by(Country.Region) %>%
-  filter(cases > 0) %>%
-  filter(date == min(date)) %>%
-  select(Country.Region, First.Date = date) %>%
-  distinct()  %>%
-  arrange(First.Date, Country.Region)
-
-```
-
-# Prepare a general data set of confirmed cases
-
-```{r General data set}
-
-Prepared <- CC %>%
-  filter(type == 'confirmed') %>%
-  group_by(Country.Region, date ) %>%
-  summarise(Total.Cases = sum(cases)) %>% # Collapse over Province.State
-  right_join(FirstDates) %>%
-  arrange(date) %>%
-  mutate(Day = seq_along(date)) %>% # Set up days from first case
-  filter(Day >= 0) %>%
-  arrange(Country.Region, Day) %>%
-  mutate(Sum.Cases = cumsum(Total.Cases)) # Cumulative total of cases is Sum.Cases
-
-```
 
 ## Prepare an Ireland specific dataset
 
 ```{r Ireland specific dataset}
-Ireland.Prepared <- CC %>%
-  filter(Country.Region == 'Ireland') %>%
+Ireland <-  CC %>%
   filter(type == 'confirmed') %>%
-  group_by(Country.Region, date ) %>%
-  summarise(Total.Cases = sum(cases)) %>%
-  right_join(FirstDates) %>%
-  mutate(Day  = seq_along(date)) %>%
-  filter(Day >= 0) %>%
-  arrange(Country.Region, Day) %>%
-  mutate(Sum.Cases = cumsum(Total.Cases))
+  filter(Country.Region == 'Ireland') %>% 
+  mutate(Sum = cumsum(cases)) %>%
+  filter(Sum >2) %>%
+  select(date,cases,Sum)
 
 ```
+# Prepare a nested set of data frames of increasing length
 
+Start with 4 points, and work up.
 
-```{r define prediction frame}
-Model.Data <- Prepared %>%
-  filter(Country.Region == 'Ireland') %>%
-  filter(Sum.Cases > 0) %>% # First Day with 1 case
-  mutate(Day.Original = Day) %>%
-  mutate(Day = 1 + (Day - min(Day)))
+```{r}
+Ireland <- Ireland %>%
+  mutate(Number = min(3,seq_along(Ireland$cases)))
+ #dt %>% slice(rep(1:n(),.$dur))
+  I <- Ireland %>% slice(rep(1:n(),.$Number)) %>% arrange(date,Number)
 
-pred.frame=tibble(Day = seq(1 : ( max(Model.Data$Day) + 10))) # 10 days ahead.
+ df <- tibble()
+ for (I in rev(max(Ireland$Number):3)) {
+ 
+ df <- rbind(Ireland %>% filter(Number < I) %>% mutate(Index = I) %>% mutate(Sum.Cases = cumsum(cases)),
+        df) 
+ }
 
+ 
+ df <- df %>% arrange(desc(Index),date) %>% group_by(Index)
+ df %>% summarise(DATE = max(date)) # Check
+ 
+ Nested <- df %>% group_by(Index) %>% nest()
 ```
 
 # Predictions of log(accumulated cases)
 
-## Linear model
-
-```{r lm}
-model.lm <- lm(data=Model.Data,
-               log10(Sum.Cases) ~ Day)
-  model.lm.predicted <- predict(model.lm,pred.frame,se.fit=TRUE)
-  model.lm.predicted <- tibble(Fit = model.lm.predicted$fit,
-                               SE = model.lm.predicted$se,
-                               Day = pred.frame$Day)
-```  
-
-## Exponential model
-
-```{r nls}
-model.nls <- nls(Sum.Cases ~ exp(a + b * Day),
-                 data = (Model.Data),
-                 start = list(a = 5, b = 1))
-summary(model.nls)
-
-  model.nls.predicted <- predict(model.nls,pred.frame)
-
-  model.NLS.predict <- predictNLS(model.nls,pred.frame)
-  model.NLS.predict.summary <- model.NLS.predict$summary
-
-  model.NLS.predict.summary <- model.NLS.predict.summary %>%
-    mutate(predicted = model.nls.predicted) %>%
-    mutate(Day = pred.frame$Day) 
-  
-  model.NLS.predict.summary <- model.NLS.predict.summary  %>%
-      rename_at(vars(ends_with('%')),
-                funs(str_replace(.,'%','.pct')))
-```
 
 ## LL model
 
@@ -169,10 +103,10 @@ model.LL.predicted <-
 
 ```{r drc Gompertz model}
 ##Gompertz model
+Nested_model <- Nested %>% mutate(model = map(data, function(df) drm(Sum.Cases ~ date, data = df, fct = G.4(names = c("Slope", "Lower Limit", "Upper Limit", "ED50")))))
 
-drc.Gom <- drm(Sum.Cases ~ Day,
-       data = Model.Data, 
-                   fct = G.4(names = c("Slope", "Lower Limit", "Upper Limit", "ED50")))
+drc.Gom <- drm(Sum ~ date,
+       data = Ireland, fct = G.4(names = c("Slope", "Lower Limit", "Upper Limit", "ED50")))
 summary(drc.Gom)
 
 AIC(drc.Gom)
