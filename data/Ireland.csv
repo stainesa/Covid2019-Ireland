@@ -94,3 +94,6 @@ Province.State,Country.Region,Lat,Long,date,cases,type
 ,Ireland,53.1424,-7.6921,2020-04-23,936,confirmed
 ,Ireland,53.1424,-7.6921,2020-04-24,577,confirmed
 ,Ireland,53.1424,-7.6921,2020-04-25,377,confirmed
+,Ireland,53.1424,-7.6921,2020-04-26,701,confirmed
+,Ireland,53.1424,-7.6921,2020-04-27,386,confirmed
+,Ireland,53.1424,-7.6921,2020-04-28,229,confirmed
