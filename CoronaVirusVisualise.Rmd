@@ -326,9 +326,9 @@ g <- ggplot(data = Prediction)  +
   geom_point(aes(x = Date, y = Predicted),colour='blue',alpha=0.4) +
   ylab('Daily reported cases') +
   ggtitle('Reported daily cases of COVID-19 infection',
-          subtitle = 'Observed and predicted') +
+          subtitle = 'Observed and predicted LL5 model') +
   theme_grey(base_size = 22)  +
-  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
+  scale_x_date(date_breaks = "2 week", date_labels = "%d-%m")
 g
 
 ggsave('images/Daily_predictions_latest_LL.png',g,units='cm',dpi=600,width=21,height=15)
