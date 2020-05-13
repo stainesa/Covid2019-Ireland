@@ -107,61 +107,40 @@ pred.frame=tibble(Day = seq(1 : ( max(Model.Data$Day) + 10))) # 10 days ahead.
 
 # Predictions of log(accumulated cases)
 
-## Linear model
-
-```{r lm}
-model.lm <- lm(data=Model.Data,
-               log10(Sum.Cases) ~ Day)
-  model.lm.predicted <- predict(model.lm,pred.frame,se.fit=TRUE)
-  model.lm.predicted <- tibble(Fit = model.lm.predicted$fit,
-                               SE = model.lm.predicted$se,
-                               Day = pred.frame$Day)
-```  
-
-## Exponential model
-
-```{r nls}
-model.nls <- nls(Sum.Cases ~ exp(a + b * Day),
-                 data = (Model.Data),
-                 start = list(a = 5, b = 1))
-summary(model.nls)
-
-  model.nls.predicted <- predict(model.nls,pred.frame)
-
-  model.NLS.predict <- predictNLS(model.nls,pred.frame)
-  model.NLS.predict.summary <- model.NLS.predict$summary
-
-  model.NLS.predict.summary <- model.NLS.predict.summary %>%
-    mutate(predicted = model.nls.predicted) %>%
-    mutate(Day = pred.frame$Day) 
-  
-  model.NLS.predict.summary <- model.NLS.predict.summary  %>%
-      rename_at(vars(ends_with('%')),
-                funs(str_replace(.,'%','.pct')))
-```
 
 ## LL model
 
 ```{r drc LL}
 ## LL model
 
-drc.LL <- drm(Sum.Cases ~ Day,
+drc.LL.4 <- drm(Sum.Cases ~ Day,
        data =Model.Data, 
                    fct = LL.4(names = c("Slope", "Lower Limit", "Upper Limit", "ED50")))
-summary(drc.LL)
-AIC(drc.LL)
-modelFit(drc.LL)
-plot(drc.LL)
-coeftest(drc.LL, vcov = sandwich)
-predict(drc.LL,as.data.frame(pred.frame),vcov. = sandwich)
+drc.LL.5 <- drm(Sum.Cases ~ Day,
+       data =Model.Data, 
+                   fct = LL.5(names = c("Slope", "Lower Limit", "Upper Limit", "ED50", "f")))
+summary(drc.LL.4)
+AIC(drc.LL.4)
+summary(drc.LL.5)
+AIC(drc.LL.5)
+modelFit(drc.LL.4)
+modelFit(drc.LL.5)
+plot(drc.LL.4)
+plot(drc.LL.5)
+coeftest(drc.LL.4, vcov = sandwich)
+predict(drc.LL.4,as.data.frame(pred.frame),vcov. = sandwich)
+coeftest(drc.LL.5, vcov = sandwich)
+predict(drc.LL.5,as.data.frame(pred.frame),vcov. = sandwich)
 model.LL.predicted <-
-  predict(drc.LL,as.data.frame(pred.frame),
+  predict(drc.LL.5,as.data.frame(pred.frame),
         se.fit=TRUE, interval='confidence',
         vcov. = sandwich, od=FALSE, level=0.95) %>%
   as_tibble() %>%
   cbind(pred.frame) %>%
-  mutate(Lower = Prediction - 1.96*SE) %>%
-  mutate(Upper = Prediction + 1.96*SE)
+  rename(Prediction.LL = Prediction) %>%
+  mutate(Lower.LL = Prediction.LL - 1.96*SE) %>%
+  mutate(Upper.LL = Prediction.LL + 1.96*SE) %>%
+  select(Day,Prediction.LL,Lower.LL,Upper.LL)
 
 ```
 
@@ -185,15 +164,10 @@ model.Gom.predicted <-
         vcov. = sandwich, od=FALSE, level=0.95) %>%
   as_tibble() %>%
   cbind(pred.frame) %>%
-  mutate(Lower = Prediction - 1.96*SE) %>%
-  mutate(Upper = Prediction + 1.96*SE)
-  
-
-# nls ssGompertz
-#DATA <- Prepared2 %>% filter(Country.Region == 'Ireland')
-#SSgompertz(log(DATA$Day2),25,0,5)
-#getInitial((Sum.Cases ~ SSgompertz(Day2, Asym, b2, b3), data = DATA))
-#nls(Sum.Cases ~ SSgompertz(Day2,25,0,5),data=DATA)
+  rename(Prediction.Gom = Prediction) %>%
+  mutate(Lower.Gom = Prediction.Gom - 1.96*SE) %>%
+  mutate(Upper.Gom = Prediction.Gom + 1.96*SE) %>%
+  select(Day,Prediction.Gom,Lower.Gom,Upper.Gom)
 
 ```
 
@@ -203,11 +177,8 @@ model.Gom.predicted <-
 Results <- Model.Data %>%
   ungroup() %>%
   filter(Country.Region=='Ireland') %>%
-#  right_join(model.NLS.predict.summary %>%
-#               select(Sim.Mean, Sim.2.5.pct, Sim.97.5.pct, Day)) %>%
-#  mutate(nls.Predicted = model.nls.predicted) %>%
-  right_join(model.Gom.predicted) %>%
-  rename(Prediction.Gom = Prediction)
+  right_join(model.LL.predicted) %>%
+  right_join(model.Gom.predicted)
 ```
 
 ## Very quick plot of data
@@ -232,7 +203,7 @@ Prepared.20 <- Prepared %>%
   mutate(Day2 = seq_along(date))
 
 Prepared.20 <- Prepared.20 %>%
-  filter(Country.Region %in% c('Czechia', 'Hungary', 'France', 'Spain', 'US', 'United Kingdom','Ireland', 'Norway', 'Denmark', 'Finland', 'Germany'))
+  filter(Country.Region %in% c('New Zealand', 'Hungary', 'France', 'Spain', 'US', 'United Kingdom','Ireland', 'Norway', 'Denmark', 'Finland', 'Germany'))
 
 g <- ggplot(data=Prepared.20,
        aes(x=Day2,y=Sum.Cases,colour=Country.Region)) +
@@ -262,7 +233,7 @@ Prepared2 <- Prepared  %>%
                     filter(Country.Region %in%
                              c("Ireland", "Italy", "Japan", "Korea, South",
                                "Netherlands", "Spain", "United Kingdom",
-                               "Singapore"))
+                               "Singapore", "New Zealand", "Australia"))
 
 
 Prepared2.50 <- Prepared2 %>%
@@ -296,7 +267,7 @@ g <- ggplot(data=Prepared2.50,
                       label=Country.Region),size=4) +
   geom_label_repel(data=Results.50 %>%
                      filter(Day == max(Day)),
-             aes(x=tail(Results.50$Day2,1)+2, y=0.6*tail(Results.50$Sim.Mean,1),
+             aes(x=tail(Results.50$Day2,1)+1, y=0.6*tail(Results.50$Prediction.Gom,1),
                        label='Predicted'),size=3,colour='pink') +
   scale_y_log10(labels=scales::comma) +
   scale_x_continuous() +
@@ -313,33 +284,43 @@ ggsave('images/Total_predictions_latest.png', g,
 
 ```{r}
 Prediction <- Results %>%
-  mutate(Daily.Cases.nls = nls.Predicted - lag(nls.Predicted)) %>% 
-  mutate(Daily.Cases.97.5 = Sim.97.5.pct - lag(Sim.97.5.pct)) %>% 
-  mutate(Daily.Cases.2.5 = Sim.2.5.pct - lag(Sim.2.5.pct)) %>%
   mutate(Daily.Cases.Gom = Prediction.Gom - lag(Prediction.Gom)) %>% 
-  mutate(Daily.Cases.Lower = Lower - lag(Lower)) %>% 
-  mutate(Daily.Cases.Upper = Upper - lag(Upper)) %>%
+  mutate(Daily.Cases.Lower = Lower.Gom - lag(Lower.Gom)) %>% 
+  mutate(Daily.Cases.Upper = Upper.Gom - lag(Upper.Gom)) %>%
   mutate(Observed = Total.Cases) %>%
   mutate(Predicted = Daily.Cases.Gom) %>%
   mutate(Date = (Day -1) + ymd('2020-03-03')) 
 
 g <- ggplot(data = Prediction)  +
   geom_point(aes(x = Date, y = Observed),colour='red') +
-  geom_line(aes(x = Date, y = Daily.Cases.nls),colour='blue',alpha=0.4) +
-  geom_ribbon(aes(x=Date, ymin=Daily.Cases.2.5, ymax=Daily.Cases.97.5),
+  geom_line(aes(x = Date, y = Daily.Cases.Gom),colour='blue',alpha=0.4) +
+  geom_ribbon(aes(x=Date, ymin=Daily.Cases.Lower, ymax=Daily.Cases.Upper),
             colour='blue', fill='lightblue', alpha=0.3) +
-  geom_point(aes(x = Date, y = Daily.Cases.nls),colour='blue',alpha=0.4) +
+  geom_point(aes(x = Date, y = Predicted),colour='blue',alpha=0.4) +
   ylab('Daily reported cases') +
   ggtitle('Reported daily cases of COVID-19 infection',
-          subtitle = 'Observed and predicted') +
-  theme_grey(base_size = 22) +
+          subtitle = 'Observed and predicted (Gompertz model)') +
+  theme_grey(base_size = 22)  +
   scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
+
 g
-ggsave('images/Daily_predictions_nls_latest.png',g,units='cm',dpi=600,width=21,height=15)
+
+ggsave('images/Daily_predictions_latest_Gom.png',g,units='cm',dpi=600,width=21,height=15)
+```
+
+
+```{r}
+Prediction <- Results %>%
+  mutate(Daily.Cases.LL = Prediction.LL - lag(Prediction.LL)) %>% 
+  mutate(Daily.Cases.Lower = Lower.LL - lag(Lower.LL)) %>% 
+  mutate(Daily.Cases.Upper = Upper.LL - lag(Upper.LL)) %>%
+  mutate(Observed = Total.Cases) %>%
+  mutate(Predicted = Daily.Cases.LL) %>%
+  mutate(Date = (Day -1) + ymd('2020-03-03')) 
 
 g <- ggplot(data = Prediction)  +
   geom_point(aes(x = Date, y = Observed),colour='red') +
-  geom_line(aes(x = Date, y = Daily.Cases.Gom),colour='blue',alpha=0.4) +
+  geom_line(aes(x = Date, y = Daily.Cases.LL),colour='blue',alpha=0.4) +
   geom_ribbon(aes(x=Date, ymin=Daily.Cases.Lower, ymax=Daily.Cases.Upper),
             colour='blue', fill='lightblue', alpha=0.3) +
   geom_point(aes(x = Date, y = Predicted),colour='blue',alpha=0.4) +
@@ -350,6 +331,6 @@ g <- ggplot(data = Prediction)  +
   scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
 g
 
-ggsave('images/Daily_predictions_latest_Gom.png',g,units='cm',dpi=600,width=21,height=15)
+ggsave('images/Daily_predictions_latest_LL.png',g,units='cm',dpi=600,width=21,height=15)
 ```
 
