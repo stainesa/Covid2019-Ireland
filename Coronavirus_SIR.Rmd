@@ -49,9 +49,9 @@ Ireland
 
 Cases <- as_vector(Ireland$cases)
   
-#  c(45, 62, 121, 198, 291, 440, 571, 830, 1287, 1975, 2744, 4515, 5974, 7711, 9692, 11791, 14380, 17205, 20440)
+#  c(45, 62, 121, 198, 291, 440, 571, 830, 1287, 1975, 2744, 4515, 5974, 7711, 9692, 11791, 14380, 17205, 20440) #China
 Day <- 1:(length(Cases))
-N <- 5800000 # population of IReland
+N <- 4800000 # population of Ireland 2016 census plus a bit
  
 old <- par(mfrow = c(1, 2))
 plot(Day, Cases, type ="b")
@@ -119,15 +119,15 @@ R0 <- setNames(Opt_par["beta"] / Opt_par["gamma"], "R0")
 R0
 ##       R0 
 ## 2.073224 China
-## 1.547249 Ireland
+## 1.134917 Ireland
  
 fit[fit$I == max(fit$I), "I", drop = FALSE] # height of pandemic
 ##            I
 ## 50 232001865 China
-## 75 414548.1  Ireland
+## 147 35345.59 Ireland
  
 max(fit$I) * 0.02 # max deaths with supposed 2% fatality rate
 ## [1] 4640037
-## [1] 8290.962
+## 706.9119
 
 ```
