@@ -1,0 +1,355 @@
+---
+title: "Coronavirus Time"
+author: "Anthony Staines"
+date: "13/03/2020"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To prepare models for coronavirus incidence, and short term predictions, in Ireland
+
+```{r setup, include=FALSE}
+library(coronavirus) # Coronavirus data
+library(propagate) # Errors in non-linear regression models
+library(ggrepel) # Nice labels
+library(lubridate) # Sane date handling
+library(drc)
+library(sandwich)
+library(lmtest)
+library(tidyverse)
+
+data("coronavirus")
+
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+```{r load data file}
+load('data/CC.Rdata')
+
+```
+## Identify the areas and the first date of a recorded confirmed case, and of the first recorded death
+
+```{r Country}
+Areas <- CC %>%
+  filter(type == 'confirmed') %>%
+  group_by(Country.Region) %>%
+  summarise(Total.Cases = sum(cases)) %>%
+  arrange(desc(Total.Cases), Country.Region)
+
+FirstDates <- CC %>%
+  filter(type == 'confirmed') %>%
+  group_by(Country.Region) %>%
+  filter(cases > 0) %>%
+  filter(date == min(date)) %>%
+  select(Country.Region, First.Date = date) %>%
+  distinct()  %>%
+  arrange(First.Date, Country.Region)
+  
+DeathDates <- CC %>%
+  filter(type == 'death') %>%
+  group_by(Country.Region) %>%
+  filter(cases > 0) %>%
+  filter(date == min(date)) %>%
+  select(Country.Region, First.Date = date) %>%
+  distinct()  %>%
+  arrange(First.Date, Country.Region)
+
+```
+
+# Prepare a general data set of confirmed cases
+
+```{r General data set}
+
+Prepared <- CC %>%
+  filter(type == 'confirmed') %>%
+  group_by(Country.Region, date ) %>%
+  summarise(Total.Cases = sum(cases)) %>% # Collapse over Province.State
+  right_join(FirstDates) %>%
+  arrange(date) %>%
+  mutate(Day = seq_along(date)) %>% # Set up days from first case
+  filter(Day >= 0) %>%
+  arrange(Country.Region, Day) %>%
+  mutate(Sum.Cases = cumsum(Total.Cases)) # Cumulative total of cases is Sum.Cases
+
+```
+
+## Prepare an Ireland specific dataset
+
+```{r Ireland specific dataset}
+Ireland.Prepared <- CC %>%
+  filter(Country.Region == 'Ireland') %>%
+  filter(type == 'confirmed') %>%
+  group_by(Country.Region, date ) %>%
+  summarise(Total.Cases = sum(cases)) %>%
+  right_join(FirstDates) %>%
+  mutate(Day  = seq_along(date)) %>%
+  filter(Day >= 0) %>%
+  arrange(Country.Region, Day) %>%
+  mutate(Sum.Cases = cumsum(Total.Cases))
+
+```
+
+
+```{r define prediction frame}
+Model.Data <- Prepared %>%
+  filter(Country.Region == 'Ireland') %>%
+  filter(Sum.Cases > 0) %>% # First Day with 1 case
+  mutate(Day.Original = Day) %>%
+  mutate(Day = 1 + (Day - min(Day)))
+
+pred.frame=tibble(Day = seq(1 : ( max(Model.Data$Day) + 10))) # 10 days ahead.
+
+```
+
+# Predictions of log(accumulated cases)
+
+## Linear model
+
+```{r lm}
+model.lm <- lm(data=Model.Data,
+               log10(Sum.Cases) ~ Day)
+  model.lm.predicted <- predict(model.lm,pred.frame,se.fit=TRUE)
+  model.lm.predicted <- tibble(Fit = model.lm.predicted$fit,
+                               SE = model.lm.predicted$se,
+                               Day = pred.frame$Day)
+```  
+
+## Exponential model
+
+```{r nls}
+model.nls <- nls(Sum.Cases ~ exp(a + b * Day),
+                 data = (Model.Data),
+                 start = list(a = 5, b = 1))
+summary(model.nls)
+
+  model.nls.predicted <- predict(model.nls,pred.frame)
+
+  model.NLS.predict <- predictNLS(model.nls,pred.frame)
+  model.NLS.predict.summary <- model.NLS.predict$summary
+
+  model.NLS.predict.summary <- model.NLS.predict.summary %>%
+    mutate(predicted = model.nls.predicted) %>%
+    mutate(Day = pred.frame$Day) 
+  
+  model.NLS.predict.summary <- model.NLS.predict.summary  %>%
+      rename_at(vars(ends_with('%')),
+                funs(str_replace(.,'%','.pct')))
+```
+
+## LL model
+
+```{r drc LL}
+## LL model
+
+drc.LL <- drm(Sum.Cases ~ Day,
+       data =Model.Data, 
+                   fct = LL.4(names = c("Slope", "Lower Limit", "Upper Limit", "ED50")))
+summary(drc.LL)
+AIC(drc.LL)
+modelFit(drc.LL)
+plot(drc.LL)
+coeftest(drc.LL, vcov = sandwich)
+predict(drc.LL,as.data.frame(pred.frame),vcov. = sandwich)
+model.LL.predicted <-
+  predict(drc.LL,as.data.frame(pred.frame),
+        se.fit=TRUE, interval='confidence',
+        vcov. = sandwich, od=FALSE, level=0.95) %>%
+  as_tibble() %>%
+  cbind(pred.frame) %>%
+  mutate(Lower = Prediction - 1.96*SE) %>%
+  mutate(Upper = Prediction + 1.96*SE)
+
+```
+
+## Gompertz model
+
+```{r drc Gompertz model}
+##Gompertz model
+
+drc.Gom <- drm(Sum.Cases ~ Day,
+       data = Model.Data, 
+                   fct = G.4(names = c("Slope", "Lower Limit", "Upper Limit", "ED50")))
+summary(drc.Gom)
+
+AIC(drc.Gom)
+plot(drc.Gom)
+modelFit(drc.Gom)
+coeftest(drc.Gom, vcov = sandwich)
+model.Gom.predicted <-
+  predict(drc.Gom,as.data.frame(pred.frame),
+        se.fit=TRUE, interval='confidence',
+        vcov. = sandwich, od=FALSE, level=0.95) %>%
+  as_tibble() %>%
+  cbind(pred.frame) %>%
+  mutate(Lower = Prediction - 1.96*SE) %>%
+  mutate(Upper = Prediction + 1.96*SE)
+  
+
+# nls ssGompertz
+#DATA <- Prepared2 %>% filter(Country.Region == 'Ireland')
+#SSgompertz(log(DATA$Day2),25,0,5)
+#getInitial((Sum.Cases ~ SSgompertz(Day2, Asym, b2, b3), data = DATA))
+#nls(Sum.Cases ~ SSgompertz(Day2,25,0,5),data=DATA)
+
+```
+
+### Create a file of results
+
+```{r Pull together results}
+Results <- Model.Data %>%
+  ungroup() %>%
+  filter(Country.Region=='Ireland') %>%
+#  right_join(model.NLS.predict.summary %>%
+#               select(Sim.Mean, Sim.2.5.pct, Sim.97.5.pct, Day)) %>%
+#  mutate(nls.Predicted = model.nls.predicted) %>%
+  right_join(model.Gom.predicted) %>%
+  rename(Prediction.Gom = Prediction)
+```
+
+## Very quick plot of data
+
+```{r plot1}
+ggplot(data=Prepared,aes(x=Day,y=log10(Sum.Cases),colour=Country.Region)) +
+  geom_path() +
+  geom_point(data=Model.Data,
+             aes(x=Day.Original,y=log10(Sum.Cases)),
+                 colour='red') +
+  theme(legend.position="none")
+
+```
+
+## Plot 1 Ireland against EU  (mostly) 20 cases
+
+```{r}
+
+Prepared.20 <- Prepared %>%
+  group_by(Country.Region) %>%
+  filter(Sum.Cases > 20) %>%
+  mutate(Day2 = seq_along(date))
+
+Prepared.20 <- Prepared.20 %>%
+  filter(Country.Region %in% c('Czechia', 'Hungary', 'France', 'Spain', 'US', 'United Kingdom','Ireland', 'Norway', 'Denmark', 'Finland', 'Germany'))
+
+g <- ggplot(data=Prepared.20,
+       aes(x=Day2,y=Sum.Cases,colour=Country.Region)) +
+  geom_path() +
+  geom_point(data = Prepared.20 %>% filter (Country.Region == "Ireland")) +
+  geom_text_repel(data = Prepared.20 %>%
+                    filter(Day2 == max(Day2)),
+                  aes(x=Day2+1.75, y=Sum.Cases, 
+                      label=Country.Region), size=4) +
+  scale_y_log10(labels=scales::comma) +
+  ylab('Total number of cases') + xlab('Days since 20th case') +
+  ggtitle('Ireland COVID-19 in context') +
+  theme_grey(base_size = 22) +
+  theme(legend.position="none")
+
+g
+
+ggsave('images/Total_Observed_latest.png', g,
+       units='cm', dpi=600, width=21, height=15)
+
+```
+
+# Second plot - Ireland and predictions in context 50 cases
+
+```{r plot2}
+Prepared2 <- Prepared  %>%
+                    filter(Country.Region %in%
+                             c("Ireland", "Italy", "Japan", "Korea, South",
+                               "Netherlands", "Spain", "United Kingdom",
+                               "Singapore"))
+
+
+Prepared2.50 <- Prepared2 %>%
+  group_by(Country.Region) %>%
+  filter(Sum.Cases > 50) %>%
+  mutate(Day2 = seq_along(date))
+
+Results.50 <- Results %>%
+  filter(Sum.Cases > 50 | is.na(Sum.Cases)) %>%
+  mutate(Day2 = seq_along(date))
+
+
+g <- ggplot(data=Prepared2.50,
+            aes(x=Day2, y=Sum.Cases, colour=Country.Region)) +
+  geom_path() +
+  geom_point(data=Prepared2.50 %>% filter(Country.Region == 'Ireland'),
+             aes(x=Day2,y=Sum.Cases),
+                 colour='red') +
+  geom_path(data=Results.50,
+            aes(y=Prediction.Gom, x=Day2),
+                 colour='blue') +
+  geom_ribbon(data=Results.50,
+            aes(ymin=Lower, ymax=Upper),
+            colour='pink', fill='green', alpha=0.5) +
+  ylab('Total number of cases') + xlab('Days since fiftieth case') +
+  ggtitle('Ireland COVID-19 in context',
+          subtitle = 'Data and predictions') +
+  geom_text_repel(data = Prepared2.50 %>%
+                    filter(Day2 == max(Day2)),
+                  aes(x=Day2, y=0.8*Sum.Cases, 
+                      label=Country.Region),size=4) +
+  geom_label_repel(data=Results.50 %>%
+                     filter(Day == max(Day)),
+             aes(x=tail(Results.50$Day2,1)+2, y=0.6*tail(Results.50$Sim.Mean,1),
+                       label='Predicted'),size=3,colour='pink') +
+  scale_y_log10(labels=scales::comma) +
+  scale_x_continuous() +
+  theme_grey(base_size = 22) +
+  theme(legend.position="none")
+
+g
+
+ggsave('images/Total_predictions_latest.png', g,
+       units='cm', dpi=600, width=21, height=15)
+```
+
+## Graphs of latest daily predictions
+
+```{r}
+Prediction <- Results %>%
+  mutate(Daily.Cases.nls = nls.Predicted - lag(nls.Predicted)) %>% 
+  mutate(Daily.Cases.97.5 = Sim.97.5.pct - lag(Sim.97.5.pct)) %>% 
+  mutate(Daily.Cases.2.5 = Sim.2.5.pct - lag(Sim.2.5.pct)) %>%
+  mutate(Daily.Cases.Gom = Prediction.Gom - lag(Prediction.Gom)) %>% 
+  mutate(Daily.Cases.Lower = Lower - lag(Lower)) %>% 
+  mutate(Daily.Cases.Upper = Upper - lag(Upper)) %>%
+  mutate(Observed = Total.Cases) %>%
+  mutate(Predicted = Daily.Cases.Gom) %>%
+  mutate(Date = (Day -1) + ymd('2020-03-03')) 
+
+g <- ggplot(data = Prediction)  +
+  geom_point(aes(x = Date, y = Observed),colour='red') +
+  geom_line(aes(x = Date, y = Daily.Cases.nls),colour='blue',alpha=0.4) +
+  geom_ribbon(aes(x=Date, ymin=Daily.Cases.2.5, ymax=Daily.Cases.97.5),
+            colour='blue', fill='lightblue', alpha=0.3) +
+  geom_point(aes(x = Date, y = Daily.Cases.nls),colour='blue',alpha=0.4) +
+  ylab('Daily reported cases') +
+  ggtitle('Reported daily cases of COVID-19 infection',
+          subtitle = 'Observed and predicted') +
+  theme_grey(base_size = 22) +
+  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
+g
+ggsave('images/Daily_predictions_nls_latest.png',g,units='cm',dpi=600,width=21,height=15)
+
+g <- ggplot(data = Prediction)  +
+  geom_point(aes(x = Date, y = Observed),colour='red') +
+  geom_line(aes(x = Date, y = Daily.Cases.Gom),colour='blue',alpha=0.4) +
+  geom_ribbon(aes(x=Date, ymin=Daily.Cases.Lower, ymax=Daily.Cases.Upper),
+            colour='blue', fill='lightblue', alpha=0.3) +
+  geom_point(aes(x = Date, y = Predicted),colour='blue',alpha=0.4) +
+  ylab('Daily reported cases') +
+  ggtitle('Reported daily cases of COVID-19 infection',
+          subtitle = 'Observed and predicted') +
+  theme_grey(base_size = 22)  +
+  scale_x_date(date_breaks = "1 week", date_labels = "%d-%m")
+g
+
+ggsave('images/Daily_predictions_latest_Gom.png',g,units='cm',dpi=600,width=21,height=15)
+```
+
