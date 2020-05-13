@@ -59,7 +59,7 @@ estR0 <- estimate.R(Incidence$cases, GT = mGT, t=Incidence$date,
                     pop.size=4000000, nsim=1000)
 
   estR0
-plotfit(estR0)
+#plotfit(estR0)
 ```
 
 ## Single R0
@@ -285,15 +285,15 @@ TD_plot <- function(data) {
            ymin = Lower,  ymax = Upper)) +
   geom_smooth(span=0.25,colour='grey',alpha=0.1) +
   geom_hline(yintercept = 1,colour='red',linetype=5) +
-  geom_ribbon(aes(fill=Type),colour='grey',alpha=0.3) +
+  geom_ribbon(aes(fill=Type),colour='blue',alpha=0.3) +
   geom_point() +
   xlab('Date of Estimate') + ylab('Estimated R0') +
   scale_x_date(date_breaks = "1 week", date_labels = "%d-%m",
-               limits=c(as_date('2020-03-03'),as_date('2020-04-14'))) +
+               limits=c(as_date('2020-03-03'),as_date('2020-05-14'))) +
   coord_cartesian(ylim=c(0,7)) +
   theme_classic() +
-  theme(axis.text.x = element_text(angle=-45, hjust=0)) + 
-  theme(legend.position="none")
+    theme(axis.title.x=element_blank()) +
+    theme(legend.position="none")
 }
 
 # Printof the datframes to check
@@ -310,9 +310,15 @@ g # Doesn't work brilliantly
 # Save as a large png file
 ggsave('images/Sensitivity_to_GT.png', g,
        dpi=600, units='cm', width=20, height=40)
+
+Rfinal <- function(list) {
+  Final <- tail(list$R0,n=1)
+} #Returns final R0 estimate
+finals <- map_dbl(R0_TD_df, Rfinal)
+range(finals)
 ```
 
-Across a wide range of generation time means (3 days to 9 days), and standard deviations (1 day to 7 days), the R0 behave qualitatively in the same way. As expected, at higher mean generation times, the estimated R0 is higher. The range of the final R0 is from 1.1 to 1.5 across all the combinations tested.
+Across a wide range of generation time means (3 days to 9 days), and standard deviations (1 day to 7 days), the R0 behave qualitatively in the same way. As expected, at higher mean generation times, the estimated R0 is higher. The range of the final R0 is from `r range(finals)[1]` to `r range(finals)[2]` across all the combinations tested.
 
 ```{r combine estimates}
 Singles <- as_tibble(rbind(R0.EG,R0.ML,R0.AR)) %>%
@@ -369,7 +375,7 @@ gm <- ggplot(Multiples,
   scale_colour_manual(values = col_ours) +
   scale_fill_manual(values = col_ours) +
   scale_x_date(date_breaks = "1 week", date_labels = "%d-%m",
-               limits=c(as_date('2020-03-03'),as_date('2020-04-26'))) +
+               limits=c(as_date('2020-03-03'),as_date('2020-05-14'))) +
   coord_cartesian(ylim=c(0,4)) +
   facet_wrap(~Type, labeller=labeller(Type = labels),ncol = 1) +
   theme_classic(base_size = 25) +
@@ -381,7 +387,7 @@ ggsave('images/R0_Time_varying.png', gm,
        units = 'cm', dpi = 600, width = 21, height = 15)
 ```
 
-From my persepctive the time varying graph is the most useful. Our R0 fell from something like 4 or 6, and fell very steadily to about 1.1. Better data, specifically using dates of testing (or symptom start) would allow a more refined analysis, however there is no indication from the case numbers that R0 is falling below 1 at the moment.
+From my persepctive the time varying graph is the most useful. Our R0 fell from something like 4 or 6, and fell very steadily to just below 1. Better data, specifically using dates of testing (or symptom start) would allow a more refined analysis, however there is no indication from the case numbers that R0 is falling well below 1 at the moment. This R0 is a function of several different epidemics, one in ocngregated settings, one in health care workers, and one in the wider community.
 
 # Arrange the two plots side by side.
 
