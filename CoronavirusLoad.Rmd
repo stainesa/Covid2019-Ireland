@@ -16,6 +16,8 @@ This file is run once a day to download the latest coronavirus data. The Irish d
 ```{r setup, include=FALSE}
 rm(list=ls())
 library(devtools)
+library(rjstat)
+library(lubridate)
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -25,6 +27,7 @@ Load the latest accumulated international coronavirus data from GitHub
 
 ```{r load}
 install_github("RamiKrispin/coronavirus")
+
 ```
 
 Check to see if it worked.
@@ -34,18 +37,21 @@ library(coronavirus)
 data("coronavirus")
 glimpse(coronavirus)
 
+Ireland_JHU <- coronavirus %>%
+  filter(country == 'Ireland', type == 'confirmed') 
+
 ```
 
 Do a quick table
 
 ```{r some tables}
-summary_df <- coronavirus %>% group_by(Country.Region, type) %>%
+summary_df <- coronavirus %>% group_by(country, type) %>%
   summarise(total_cases = sum(cases)) %>%
   arrange(-total_cases)
 
 coronavirus %>% 
   filter(date == max(date)) %>%
-  select(country = Country.Region, type, cases) %>%
+  select(country = country, type, cases) %>%
   group_by(country, type) %>%
   summarise(total_cases = sum(cases)) %>%
   pivot_wider(names_from = type,
@@ -53,26 +59,78 @@ coronavirus %>%
   arrange(-confirmed)
 ```
 ## Correct the Irish data
-The Irish data contain some errors in the JHU dataset, and are less up-to-date. We donwload the data manually from the website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) and add it to an excel file for each day
 
+The Irish data contain some errors in the JHU dataset, and are less up-to-date. We download the data from the OG website
+
+## Download OG data
 
 ```{r Ireland}
 
-Ireland <- coronavirus %>%
-  filter(Country.Region == 'Ireland', type == 'confirmed') 
+Irish_data <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d8eb52d56273413b84b0187a4e9117be_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
 
-# Manually edit to correct Ireland
-write_csv(Ireland,'data/Ireland.csv')
-Ireland.manual <- readxl::read_xlsx('data/Ireland.xlsx',
-                                    sheet = 'Ireland-manual')
-# Has DoH data added manually
+# This file has no rows for days when there are no cases.
+  start_date = min(coronavirus$date)
+  end_date = max(as_date(Irish_data$Date))
+  n_days <- interval(start_date,end_date)/days(1)
+Datespan <- as_tibble(start_date + days(0:n_days)) %>%
+  rename(date = value) # I row per date in the two datasources
 
+Ireland_corrected <- Irish_data %>%
+  select(X:TotalCovidRecovered) %>% 
+  mutate(province = NA_character_, country='Ireland') %>%
+  rename(date = Date, province =  province, country = country,
+         lat = X, long = Y, confirmed = ConfirmedCovidCases,
+         Total.Cases = TotalConfirmedCovidCases,
+         death = ConfirmedCovidDeaths,
+         total.deaths = TotalCovidDeaths,
+         recovered = ConfirmedCovidRecovered,
+         Total.recovered = TotalCovidRecovered) %>%
+  mutate(date = as_date(date)) %>%
+  select(-starts_with('Total.')) %>%
+  select(date, province, country, lat, long,
+         confirmed, death, recovered) %>%
+  right_join(Datespan, by = "date") %>% # Fill in the dates where no cases occurred in Ireland
+  mutate(country = 'Ireland',
+         lat = max(Ireland_JHU$lat),
+         long= max (Ireland_JHU$long)) %>% # Fill in country, lat, long etc..
+  pivot_longer(-c(date, province, country, lat, long),
+               values_to = 'cases',
+               names_to = 'type') %>% #  line up correctly
+  mutate(cases = replace_na(0)) # Set missing values to zero
+
+```
+# HPSC data
+
+```{r}
+HPSC_data <- Irish_data %>%
+  select(-(X:TotalCovidRecovered)) %>% 
+  mutate(province = NA_character_, country='Ireland') %>%
+  rename(date = StatisticsProfileDate) %>%
+  mutate(date = as_date(date))
+
+```
+
+# County level data
+
+```{r}
+
+CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
+
+```
+
+#
+
+```{r Fix coronavirus data}
+
+
+
+# Add back Irish data
 CC <- coronavirus %>%
-  filter(Country.Region != 'Ireland') %>%
-  rbind(Ireland.manual)
+  filter(country != 'Ireland') %>%
+  rbind(Ireland_corrected)
 
-Ireland_corrected <- CC %>%
-  filter(Country.Region == 'Ireland', type == 'confirmed')
+Ireland_fixed <- CC %>%
+  filter(country == 'Ireland', type == 'confirmed')
 
 save(CC, file='data/CC.Rdata', envir = .GlobalEnv)
 
