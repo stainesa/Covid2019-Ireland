@@ -92,12 +92,19 @@ Ireland_corrected <- Irish_data %>%
   right_join(Datespan, by = "date") %>% # Fill in the dates where no cases occurred in Ireland
   mutate(country = 'Ireland',
          lat = max(Ireland_JHU$lat),
-         long= max (Ireland_JHU$long)) %>% # Fill in country, lat, long etc..
+         long= max (Ireland_JHU$long)) %>%
+  arrange(date) %>% # Fill in country, lat, long etc..
   pivot_longer(-c(date, province, country, lat, long),
                values_to = 'cases',
-               names_to = 'type') %>% #  line up correctly
-  mutate(cases = replace_na(0)) # Set missing values to zero
+               names_to = 'type')
 
+# Replace NA with 0 in cases
+Ireland_corrected$cases[is.na(Ireland_corrected$cases)] <- 0
+
+
+Ireland_corrected %>%
+  group_by(type) %>%
+  summarise(N = sum(cases))
 ```
 # HPSC data
 
@@ -121,9 +128,6 @@ CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30
 #
 
 ```{r Fix coronavirus data}
-
-
-
 # Add back Irish data
 CC <- coronavirus %>%
   filter(country != 'Ireland') %>%
@@ -134,5 +138,6 @@ Ireland_fixed <- CC %>%
 
 save(CC, file='data/CC.Rdata', envir = .GlobalEnv)
 
+save(HPSC_data,file = 'data/HH.Rdata', envir = .GlobalEnv)
 ```
 

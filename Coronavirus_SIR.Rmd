@@ -41,7 +41,7 @@ load('data/CC.Rdata')
 
 ```{r}
 Ireland <- CC %>%
-  filter(Country.Region == 'Ireland') %>%
+  filter(country == 'Ireland') %>%
   filter(type == 'confirmed') %>%
   mutate(Sum = cumsum(cases)) %>%
   filter(Sum >2)
