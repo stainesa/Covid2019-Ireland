@@ -1,0 +1,161 @@
+---
+title: "Age trends"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To prepare graphs of coronavirus incidence by age.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(lubridate)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+# Load the data
+Latest HSE/HPSC data
+
+```{r}
+Irish_Profile <- readRDS('data/Irish_Profile.rds')
+
+  start_date = min(Irish_Profile$Date)
+  end_date = max(Irish_Profile$Date) 
+```
+
+# Gender
+
+```{r}
+Gender <- Irish_Profile %>%
+  select(Date,FID,Male,Female,CovidCasesConfirmed) 
+
+##Fix a typo
+  Male.53   <- Gender$Female[Gender$FID == 53]
+  Female.53 <- Gender$Male[Gender$FID == 53]
+  Gender$Female[Gender$FID == 53] <- Female.53
+  Gender$Male[Gender$FID == 53] <- Male.53
+  Gender$Female[Gender$FID == 125] <- 14558 # 25498 (total) - 10901 (males) - 39 (unknown previous day)
+
+  Gender <- Gender %>%
+    select(Date,Male,Female) %>%
+    mutate(Male   = c(NA,diff(Male))) %>% # Diff lops off the first value 
+    mutate(Female = c(NA,diff(Female))) %>%
+    filter(!is.na(Female)) %>%
+    filter(Date != as_date('2020-04-21')) %>%
+    filter(Date != as_date('2020-04-22')) %>%
+    pivot_longer(-Date, names_to='Sex', values_to='Cases')
+
+```
+
+```{r}
+ggGender <- ggplot(Gender,aes(x=date(Date), y=Cases, group=Sex, colour=Sex)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3) +
+  scale_x_date(limits=c(start_date+ days(21),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed COVID19 cases over time') +
+  theme_light()
+
+ggGender
+
+ggsave('images/COVID19Gender.png', ggGender,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+# Age group
+
+```{r}
+Age <- Irish_Profile %>%
+  select(Date,FID,Unknown,Aged1:Aged65up, CovidCasesConfirmed) %>%
+  rename(Date =  Date, FID = FID, Unknown = Unknown,
+         AgeUnder_1 = Aged1, Age1_4 = Aged1to4,
+         Age5_14 = Aged5to14, Age15_24 = Aged15to24,
+         Age25_34 = Aged25to34, Age35_44 = Aged35to44,
+         Age45_54 = Aged45to54, Age55_64 = Aged55to64,
+         Age65plus = Aged65up,
+         Total = CovidCasesConfirmed) %>%
+  mutate(AgeUnder_1 = c(NA, diff(AgeUnder_1))) %>%
+  mutate(Age1_4 = c(NA, diff(Age1_4))) %>%
+  mutate(Age5_14 = c(NA, diff(Age5_14))) %>%
+  mutate(Age15_24 = c(NA, diff(Age15_24))) %>%
+  mutate(Age25_34 = c(NA, diff(Age25_34))) %>%
+  mutate(Age35_44 = c(NA, diff(Age35_44))) %>%
+  mutate(Age45_54 = c(NA, diff(Age45_54))) %>%
+  mutate(Age55_64 = c(NA, diff(Age55_64))) %>%
+  mutate(Age65plus = c(NA, diff(Age65plus))) %>%
+    pivot_longer(-c(Date,FID),
+                 names_to='Age',
+                 names_prefix = 'Age',
+                 values_to='Cases') %>%
+  filter(Age != 'Total') %>%
+  filter(!is.na(Cases)) %>%
+  mutate(Age = fct_inorder(Age)) %>%
+  mutate(Cases = pmax(Cases,0))
+
+```
+
+## Recent cases
+
+```{r}
+ggAgeMapRecent <- ggplot(Age,
+       aes(x=date(Date), y=Age,
+           colour=Cases, fill=Cases)) +
+  geom_tile() +
+  scale_fill_distiller(palette='OrRd', direction=1,
+                       na.value='white') +
+  scale_colour_distiller(palette='OrRd', direction=1,
+                         na.value='white') +
+  scale_x_date(limits=c(start_date + days(180),
+                        end_date + days(2)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  xlab('Date') + ylab('Age group') +
+  ggtitle('Confirmed COVID19 cases by age',subtitle='Recent cases only') +
+  theme_light()
+
+ggAgeMapRecent
+
+ggsave('images/COVID19AgeMapRecent.png', ggAgeMapRecent,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+## All cases
+
+```{r}
+ggAgeMap <- ggplot(Age,
+       aes(x=date(Date), y=Age,
+           colour=Cases, fill=Cases)) +
+  geom_tile() +
+  scale_fill_distiller(palette='OrRd', direction=1,
+                       na.value='white') +
+  scale_colour_distiller(palette='OrRd', direction=1,
+                         na.value='white') +
+  scale_x_date(limits=c(start_date + days(21),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  xlab('Date') + ylab('Age group') +
+  ggtitle('Confirmed COVID19 cases by age',subtitle='All cases') +
+  theme_light()
+
+ggAgeMap
+
+ggsave('images/COVID19AgeMap.png', ggAgeMap,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```

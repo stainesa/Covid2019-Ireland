@@ -1,0 +1,98 @@
+---
+title: "GDP COVID"
+author: "Anthony Staines"
+date: "15/09/2020"output: 
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(lubridate)
+library(readxl)
+library(ggrepel)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# GDP data (OECD)
+
+```{r}
+excel_sheets('data/DP_LIVE_14092020190834047.xlsx')
+
+GDP <- read_xlsx('data/DP_LIVE_14092020190834047.xlsx', sheet='GDP')
+  #Country <- GDP %>% dplyr::select(LOCATION) %>% unique()
+  #Country %>% write_csv('data/Country.csv')
+
+COVID <- read_xlsx('data/DP_LIVE_14092020190834047.xlsx',
+                   sheet='COVID', na=c("","NA","N/A",""))
+  names(COVID) <- c('No','Country','Total','New',
+                    'Deaths','Died',
+                    'Recovered','Active','Serious',
+                    'CaseRate','DeathRate',
+                    'Tests','TestRate','Population')
+
+COVID <- COVID %>%
+  mutate(Population = str_replace_all(Population, ",", "")) %>%
+  mutate(Population = as.numeric(Population))
+
+COVID <- COVID %>%
+  mutate(Active = str_replace_all(Active, ",", "")) %>%
+  mutate(Active = as.numeric(Active))
+COVID <- COVID %>%
+  mutate(Recovered = str_replace_all(Recovered, ",", "")) %>%
+  mutate(Recovered = as.numeric(Recovered))
+  
+Country <- read_xlsx('data/DP_LIVE_14092020190834047.xlsx', sheet='Country')
+  Cs <- sort(Country$Country)
+
+COVID <- COVID %>% filter(Country %in% Cs)
+
+GDP <- GDP %>% 
+  inner_join(Country, by = "LOCATION") %>%
+  inner_join(COVID, by='Country')
+
+```
+
+```{r}
+
+Single <- ggplot(data=GDP %>%
+         filter(SUBJECT == 'SINGLEHIT'),
+     aes(x=CaseRate,y=Value, size=Population, label=LOCATION)) +
+geom_point(colour='pink') +
+geom_smooth(method='loess', span = 1,
+            mapping = aes(weight = Population),
+            colour='lightblue2',
+            fill='lightgray') +
+geom_text_repel(size=3, colour = 'darkblue') +
+  ggtitle('GDP falls as COVID19 circulation rises',
+          subtitle='OECD data - SINGLEHIT model') +
+  xlab('COVID19 cases per million') +
+  ylab('Predicted change in GDP over 2020') +
+  theme_minimal() +
+  theme(legend.position="none")
+
+Double <- ggplot(data=GDP %>%
+         filter(SUBJECT == 'DOUBLEHIT'),
+     aes(x=CaseRate,y=Value, size=Population, label=LOCATION)) +
+geom_point(colour='pink') +
+geom_smooth(method='loess', span = 1,
+            mapping = aes(weight = Population),
+            colour='lightblue2',
+            fill='lightgray') +
+geom_text_repel(size=3, colour = 'darkblue') +
+  ggtitle('GDP falls as COVID19 circulation rises',
+          subtitle='OECD data - DOUBLEHIT model') +
+  xlab('COVID19 cases per million') +
+  ylab('Predicted change in GDP over 2020') +
+  theme_minimal() +
+  theme(legend.position="none")
+
+ggsave('SINGLEHIT.png', Single, height = 100, width = 160, units = 'mm')
+ggsave('DOUBLEHIT.png', Double, height = 100, width = 160, units = 'mm')
+```
+

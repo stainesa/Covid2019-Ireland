@@ -1,12 +1,13 @@
 ---
 title: "Load data"
 author: "Anthony Staines"
-date: "13/03/2020"
-output: 
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
   html_document: 
     fig_caption: yes
     toc: yes
-editor_options: 
+editor_options:
   chunk_output_type: console
 ---
 
@@ -16,8 +17,8 @@ This file is run once a day to download the latest coronavirus data. The Irish d
 ```{r setup, include=FALSE}
 rm(list=ls())
 library(devtools)
-library(rjstat)
 library(lubridate)
+library(jsonlite)
 library(tidyverse)
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -42,10 +43,11 @@ Ireland_JHU <- coronavirus %>%
 
 ```
 
-Do a quick table
+Do a quick table or two
 
 ```{r some tables}
-summary_df <- coronavirus %>% group_by(country, type) %>%
+summary_df <- coronavirus %>%
+  group_by(country, type) %>%
   summarise(total_cases = sum(cases)) %>%
   arrange(-total_cases)
 
@@ -62,33 +64,66 @@ coronavirus %>%
 
 The Irish data contain some errors in the JHU dataset, and are less up-to-date. We download the data from the OG website
 
-## Download OG data
+# CovidStatisticsProfileHPSCIrelandOpenData
+https://covid-19.geohive.ie/datasets/d8eb52d56273413b84b0187a4e9117be
+
+Two datasets mashed together. One up to date, the other two days behind
 
 ```{r Ireland}
+Irish_Open_data <- read_csv('https://opendata.arcgis.com/datasets/d8eb52d56273413b84b0187a4e9117be_0.csv')
 
-Irish_data <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d8eb52d56273413b84b0187a4e9117be_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
+Irish_Current <- Irish_Open_data %>% dplyr::select(X:TotalCovidDeaths,FID) %>%
+  mutate(Date = as_date(Date))
+Irish_Profile <- Irish_Open_data %>% dplyr::select(StatisticsProfileDate:FID) %>%
+  mutate(province = NA_character_, country='Ireland') %>%
+  rename(date = StatisticsProfileDate) %>%
+  mutate(Date = as_date(date)) %>%
+  select(-date) %>%
+  select(Date,CovidCasesConfirmed:country)
+
+
+saveRDS(Irish_Current, file='data/Irish_Current.rds')
+saveRDS(Irish_Profile, file='data/Irish_Profile.rds')
+```
+
+# County level data
+
+```{r}
+CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
+
+saveRDS(CountyCSV, file='data/CountyCSV.rds')
+```
+
+# Covid19AcuteHospitalHistoricSummaryOpenData 
+
+From :- https://data.gov.ie/dataset/covid19acutehospitalhistoricsummaryopendata1/resource/83999570-3323-4ff4-b9a3-f5eaaa3c33b7
+
+```{r}
+Hospital_SummaryCSV <- read_csv('https://opendata-geohive.hub.arcgis.com/datasets/fe9bb23592ec4142a4f4c2c9bd32f749_0.csv?outSR=%7B%22latestWkid%22%3A4326%2C%22wkid%22%3A4326%7D')
+
+saveRDS(Hospital_SummaryCSV, file='data/Hospital_SummaryCSV.rds')
+```
+
+```{r}
 
 # This file has no rows for days when there are no cases.
   start_date = min(coronavirus$date)
-  end_date = max(as_date(Irish_data$Date))
-  n_days <- interval(start_date,end_date)/days(1)
+  end_date = max(as_date(Irish_Current$Date))
+  n_days <- lubridate::interval(start_date,end_date)/days(1)
 Datespan <- as_tibble(start_date + days(0:n_days)) %>%
   rename(date = value) # I row per date in the two datasources
 
-Ireland_corrected <- Irish_data %>%
-  select(X:TotalCovidRecovered) %>% 
+Ireland_corrected <- Irish_Current %>%
   mutate(province = NA_character_, country='Ireland') %>%
   rename(date = Date, province =  province, country = country,
          lat = X, long = Y, confirmed = ConfirmedCovidCases,
          Total.Cases = TotalConfirmedCovidCases,
          death = ConfirmedCovidDeaths,
-         total.deaths = TotalCovidDeaths,
-         recovered = ConfirmedCovidRecovered,
-         Total.recovered = TotalCovidRecovered) %>%
+         total.deaths = TotalCovidDeaths) %>%
   mutate(date = as_date(date)) %>%
-  select(-starts_with('Total.')) %>%
-  select(date, province, country, lat, long,
-         confirmed, death, recovered) %>%
+  dplyr::select(-starts_with('Total.')) %>%
+  dplyr::select(date, province, country, lat, long,
+         confirmed, death) %>%
   right_join(Datespan, by = "date") %>% # Fill in the dates where no cases occurred in Ireland
   mutate(country = 'Ireland',
          lat = max(Ireland_JHU$lat),
@@ -106,38 +141,19 @@ Ireland_corrected %>%
   group_by(type) %>%
   summarise(N = sum(cases))
 ```
-# HPSC data
 
-```{r}
-HPSC_data <- Irish_data %>%
-  select(-(X:TotalCovidRecovered)) %>% 
-  mutate(province = NA_character_, country='Ireland') %>%
-  rename(date = StatisticsProfileDate) %>%
-  mutate(date = as_date(date))
-
-```
-
-# County level data
-
-```{r}
-
-CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
-
-```
-
-#
+# Fix JHU data
 
 ```{r Fix coronavirus data}
 # Add back Irish data
-CC <- coronavirus %>%
+JHU_C <- coronavirus %>%
   filter(country != 'Ireland') %>%
   rbind(Ireland_corrected)
 
-Ireland_fixed <- CC %>%
+Ireland_fixed <- JHU_C %>%
   filter(country == 'Ireland', type == 'confirmed')
 
-save(CC, file='data/CC.Rdata', envir = .GlobalEnv)
+saveRDS(JHU_C, file='data/JHU_C.rds')
 
-save(HPSC_data,file = 'data/HH.Rdata', envir = .GlobalEnv)
 ```
 

@@ -1,0 +1,217 @@
+---
+title: "County map"
+author: "Anthony Staines"
+date: "11/08/2020"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To prepare models for coronavirus incidence, and short term predictions, in Ireland
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(lubridate) # Sane date handling
+library(sf)
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(transformr)
+
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+
+```{r}
+CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
+
+save(CountyCSV, file='data/CountyCSV.Rdata', envir = .GlobalEnv)
+```
+
+```{r load data file}
+load('data/CountyCSV.Rdata')
+write_csv(CountyCSV,'CountyCSV.csv')
+
+```
+
+## Basic dates
+
+```{r}
+CountyCSV <- CountyCSV %>%
+  mutate(Date = as_date(TimeStamp)) %>%
+  filter(Date > as_date('2020-03-14')) # No data till 2020-03-21
+start_date = min(as_date(CountyCSV$Date))
+end_date = max(as_date(CountyCSV$Date))
+  n_days <- interval(start_date,end_date)/days(1)
+Datespan <- as_tibble(start_date + days(0:n_days)) %>%
+  rename(Date = value) # I row per date in the two datasources
+```
+
+County level data has cumulative cases, not cases per day, which is what we need, so we get the difference of the cases on each day, from the previous day, within each county.
+
+```{r}
+CountyCSV <- CountyCSV %>%
+  group_by(ORIGID) %>%
+  mutate(Cases = ConfirmedCovidCases -
+           lag(ConfirmedCovidCases, default = 0)) %>%
+  mutate(Cases = ifelse(Cases <0,0,Cases)) %>%
+  mutate(AvgCases7 = zoo::rollmean(Cases,7,fill = c(0,0,0))) %>%
+  mutate(AvgCases14 = zoo::rollmean(Cases,14,fill = c(0,0,0))) %>%
+  mutate(Rate = 100000*Cases/PopulationCensus16) %>%
+  mutate(AvgRate7 = 100000*AvgCases7/PopulationCensus16) %>%
+  mutate(AvgRate14 = 100000*AvgCases14/PopulationCensus16)
+
+CountyCSV <-  CountyCSV %>%
+  mutate(CasesCut = cut(Cases,
+                        breaks=c(-10,0,1,4,10,50,100,1000),
+                        labels=c('0','1','2-4','5-10',
+                                 '10-49','50-99','100+'))) %>%
+  mutate(AvgCasesCut7 = cut(round(AvgCases7),                      breaks=c(-10,0,1,4,10,50,100,1000),
+                        labels=c('0','1','2-4','5-10',
+                                 '10-49','50-99','100+'))) %>%
+  mutate(AvgCasesCut14 = cut(round(AvgCases14),                      breaks=c(-10,0,1,4,10,50,100,1000),
+                        labels=c('0','1','2-4','5-10',
+                                 '10-49','50-99','100+')))
+
+CountyCSV$AvgCases7[CountyCSV$AvgCases7==0] <- CountyCSV$Cases[CountyCSV$AvgCases7==0]
+CountyCSV$AvgCases14[CountyCSV$AvgCases14==0] <- CountyCSV$Cases[CountyCSV$AvgCases14==0]
+CountyCSV$AvgRate7[CountyCSV$AvgRate7==0] <- CountyCSV$Rate[CountyCSV$AvgRate7==0]
+CountyCSV$AvgRate14[CountyCSV$AvgRate14==0] <- CountyCSV$Rate[CountyCSV$AvgRate14==0]
+
+```
+
+## Load the boundaries
+
+```{r}
+Counties <- st_read('County boundaries/Census2011_Admin_Counties_generalised20m.shp')
+Counties
+Counties$COUNTYNAME[20] <- 'Dún Laoghaire-Rathdown' # Fix typo
+
+ggplot(data=Counties) + geom_sf() + ggtitle('Republic of Ireland')  + geom_sf_text(aes(label = COUNTYNAME))
+```
+
+## Load the geography matching file
+
+```{r}
+Match_Geographies <- openxlsx::read.xlsx(
+  'County boundaries/Merge_Geographies.xlsx')
+
+CountyCSV <- CountyCSV %>%
+  inner_join(Match_Geographies %>% select(Data,Abbreviation) %>% distinct(),
+             by=c('CountyName' = 'Data' ))
+```
+
+
+## Heatmap
+county by date
+Order by date and total rate
+Display count
+
+```{r, fig.width=8, fig.height=20}
+#CountyOrder <- CountyCSV %>% group_by(Abbreviation) %>% summarise(MAX = max(ConfirmedCovidCases)) %>% arrange(desc(MAX))
+CountyCSV %>% group_by(Abbreviation) %>% summarise(MAX = max(AvgRate14)) %>% arrange(desc(MAX))
+
+ORDER <- as.character(CountyOrder$Abbreviation)
+
+CountyCSV <- CountyCSV %>%
+  mutate(AbbreviationF = as_factor(Abbreviation)) %>%
+  mutate(AbbreviationF =  fct_relevel(AbbreviationF,ORDER))
+
+
+HeatMapColours <- c('0' = 'green',
+                    '1' = '#ffffb3', '2-4' = '#ffff99',
+          '5-10' = 'yellow', '10-49'= '#b3ffff',
+          '50-99' = 'pink', '100+' = 'red')
+library(scales)
+
+ggplot(data=CountyCSV,
+       aes(x=AbbreviationF,y=Date)) +
+  geom_tile(aes(colour=AvgRate14,
+                fill=AvgRate14),height=1,width=1) +
+#  scale_x_discrete(position = "top") +
+#  scale_color_manual(values=HeatMapColours,
+#    aesthetics = c("colour", "fill")) +
+  scale_y_date(breaks='1 month',
+  minor_breaks =  "1 week",
+  labels=date_format("%m-%d")) +
+  theme(axis.text.x.top = element_text(angle = -90, vjust = 0.5, hjust=1, size=10)) +
+  theme_minimal()
+
+table(CountyCSV$CasesCut)
+
+```
+
+
+```{r}
+Counties2 <- Counties %>%
+  inner_join(Match_Geographies,by=c('COUNTYNAME' = 'Geography'))
+ggplot(data=Counties2) +geom_sf(aes(fill=TOTAL_AREA)) +geom_sf_text(aes(label = Data))
+
+Counties3 <- Counties2 %>% 
+  group_by(Data) %>%
+  summarise(geometry = st_union(geometry),
+            LAND_AREA = sum(LAND_AREA),
+            TOTAL_AREA = sum(TOTAL_AREA)) %>% # Areas added correctly.
+  st_union(by_feature = TRUE)
+
+ggplot(data=Counties3) +
+  geom_sf(aes(fill=TOTAL_AREA)) +
+  geom_sf_text(aes(label = Data))
+```
+
+## Link the data and the map.
+```{r}
+Counties4 <- CountyCSV %>%
+  inner_join(Counties3, by= c('CountyName' =  'Data')) %>%
+  ungroup() %>%
+  st_sf()
+
+
+CC <- Counties4 %>% filter(Date == '2020-08-01')
+
+ggplot(data=CC) +
+  geom_sf(aes(fill=CasesCut)) +
+  geom_sf_text(aes(label = CountyName))
+
+ggplot(data=CC) +
+  geom_sf(aes(fill=AvgCasesCut7)) +
+  geom_sf_text(aes(label = CountyName))
+
+ggplot(data=CC) +
+  geom_sf(aes(fill=AvgCasesCut14)) +
+  geom_sf_text(aes(label = CountyName),size=2,colour='white') +
+  scale_fill_discrete('Cases',
+                  type=c('#b2df8a','#b3cde3','#ffff99','pink','red'))
+
+Counties4
+
+glimpse(Counties4)
+```
+## animate
+
+```{r, eval=FALSE}
+#TimedMap <- 
+  
+  ggplot(data=Counties4) +
+  geom_sf(aes(fill=AvgCasesCut14)) +
+#  geom_sf_text(aes(label = CountyName),size=2,colour='white') +
+#  scale_fill_discrete('Cases',type=c('#b2df8a','#b3cde3','#ffff99','pink','red')) +
+  labs(title = 'Date: {frame_time}') +
+  transition_time(Date) +
+  ease_aes('linear')
+
+#TimedMapAnimation <-
+#  animate(TimedMap,renderer=gifski_renderer(loop=FALSE))
+
+TimedMapAnimation <-
+  animate(TimedMap)
+
+anim_save(TimedMapAnimation,'TimedMapAnimationgif')
+frames <- frame_vars(TimedMapAnimatio)
+View(frames)
+
+
+```
