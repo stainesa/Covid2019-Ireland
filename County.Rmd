@@ -1,0 +1,145 @@
+---
+title: "County data"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To prepare graphs of coronavirus incidence at county level
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(sf)
+library(RcppRoll)
+library(scales)
+library(lubridate)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+
+```{r load data file}
+CountyCSV <- readRDS('data/CountyCSV.rds')
+
+```
+
+## Basic dates
+
+```{r}
+CountyCSV <- CountyCSV %>%
+  mutate(Date = as_date(TimeStamp)) %>%
+  filter(Date > as_date('2020-03-20')) # No data till 2020-03-21
+
+start_date = min(as_date(CountyCSV$Date))
+end_date = max(as_date(CountyCSV$Date))
+  n_days <- interval(start_date,end_date)/days(1)
+Datespan <- as_tibble(start_date + days(0:n_days)) %>%
+  rename(Date = value) # I row per date in the two datasources
+```
+
+County level data has cumulative cases, not cases per day, which is what we need, so we get the difference of the cases on each day, from the previous day, within each county.
+
+```{r}
+#Lags and cases
+CountyCSV <- CountyCSV %>%
+  group_by(ORIGID) %>%
+  mutate(Cases = ConfirmedCovidCases -
+           lag(ConfirmedCovidCases, default = 0)) %>%
+  mutate(Cases = ifelse(Cases <0,0,Cases))
+
+#Means and Medians
+CountyCSV <- CountyCSV %>%
+  group_by(ORIGID) %>%
+  mutate(CasesSum7 = roll_sum(Cases,n=7,fill=0,align='right')) %>%
+  mutate(CasesSum14 = roll_sum(Cases,n=14,fill=0,align='right')) %>%
+  mutate(CasesMean7 = roll_mean(Cases,n=7,fill=0,align='right')) %>%
+  mutate(CasesMean14 = roll_mean(Cases,n=14,fill=0,align='right')) %>%
+  mutate(CasesMedian7 = roll_median(Cases,n=7,fill=0,align='right')) %>%
+  mutate(CasesMedian14 = roll_median(Cases,n=14,fill=0,align='right'))
+
+#Rates
+CountyCSV <- CountyCSV %>%
+  group_by(ORIGID) %>%
+  mutate(Rate = 100000*Cases/PopulationCensus16) %>%
+  mutate(MeanRate7 = 100000*CasesMean7/PopulationCensus16) %>%
+  mutate(MeanRate14 = 100000*CasesMean14/PopulationCensus16) %>%
+  mutate(MedianRate7 = 100000*CasesMean7/PopulationCensus16) %>%
+  mutate(MedianRate14 = 100000*CasesMedian14/PopulationCensus16)
+
+write_csv(CountyCSV,'CountyCSV.csv')
+
+Kil <- CountyCSV %>%
+  filter(ORIGID == 9) # Kildare
+
+Dub <- CountyCSV %>%
+  filter(ORIGID == 6) # Dublin
+```
+
+## Load the boundaries
+
+```{r}
+Counties <- st_read('County boundaries/Census2011_Admin_Counties_generalised20m.shp')
+Counties
+Counties$COUNTYNAME[20] <- 'Dún Laoghaire-Rathdown' # Fix typo
+
+ggplot(data=Counties) + geom_sf() + ggtitle('Republic of Ireland')  + geom_sf_text(aes(label = COUNTYNAME))
+```
+
+## Load the geography matching file
+
+```{r}
+Match_Geographies <- openxlsx::read.xlsx(
+  'County boundaries/Merge_Geographies.xlsx')
+
+CountyCSV <- CountyCSV %>%
+  inner_join(Match_Geographies %>% select(Data,Abbreviation) %>% distinct(),
+             by=c('CountyName' = 'Data' ))
+```
+
+
+## Heatmap
+county by date
+Order by date and total rate
+Display count
+
+```{r, fig.width=8, fig.height=20}
+#CountyOrder <- CountyCSV %>% group_by(Abbreviation) %>% summarise(MAX = max(ConfirmedCovidCases)) %>% arrange(desc(MAX))
+CountyOrder <- CountyCSV %>%
+  group_by(Abbreviation) %>%
+  summarise(MAX = max(MeanRate14)) %>%
+  arrange(desc(MAX))
+
+ORDER <- as.character(CountyOrder$Abbreviation)
+
+CountyCSV <- CountyCSV %>%
+  mutate(AbbreviationF = as_factor(Abbreviation)) %>%
+  mutate(AbbreviationF =  fct_relevel(AbbreviationF,ORDER))
+
+ggplot(data=CountyCSV,
+       aes(x=AbbreviationF,y=Date)) +
+  geom_tile(aes(colour = MeanRate14,
+                fill = MeanRate14),height=1,width=1) +
+  scale_x_discrete(position = "top") +
+  scale_colour_distiller(palette='OrRd', direction=1,
+                         na.value='white') +
+  scale_fill_distiller(palette='OrRd', direction=1,
+                         na.value='white') +
+#  scale_color_manual(values=HeatMapColours,
+#    aesthetics = c("colour", "fill")) +
+  scale_y_date(breaks='1 month',
+  minor_breaks =  "1 week",
+  labels=date_format("%b")) +
+  theme(axis.text.x.top = element_text(angle = 270, face='bold',
+                                       vjust = 0.5, hjust=1,
+                                       size=20)) +
+  labs(title =  '7 day case rate by county',
+       x = 'County',  y = 'Date',
+       colour='Rate', fill='Rate') +
+  theme_light()
+
+```

@@ -1,0 +1,144 @@
+---
+title: "Time trends"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To prepare graphs of coronavirus incidence over time.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(RcppRoll)
+library(lubridate)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+# Load the data
+Latest HSE/HPSC data
+
+```{r}
+Irish_Current <- readRDS('data/Irish_Current.rds')
+  start_date = min(Irish_Current$Date)
+  end_date = max(Irish_Current$Date) + days(14)
+  
+```
+
+# Cases
+
+```{r}
+ggCases <- ggplot(Irish_Current,aes(x=date(Date),y=ConfirmedCovidCases)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(start_date, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed COVID19 cases over time') +
+  theme_light()
+
+ggCases
+
+ggsave('images/COVID19Caseslogscale.png', ggCases,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+# Deaths
+
+```{r}
+ggDeaths <- ggplot(Irish_Current,aes(x=date(Date),y=ConfirmedCovidDeaths)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(start_date, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed COVID19 deaths over time') +
+  theme_light()
+
+ggDeaths
+
+ggsave('images/COVID19Deathslogscale.png', ggDeaths,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+# Load the profile data
+
+```{r}
+Irish_Profile <- readRDS('data/Irish_Profile.rds') %>%
+  filter(!is.na(CovidCasesConfirmed))
+
+start_date = min(Irish_Profile$Date)
+end_date = max(Irish_Profile$Date) + days(14)
+
+Irish_Profile <- Irish_Profile %>%
+  mutate(Admissions = HospitalisedCovidCases -
+           lag(HospitalisedCovidCases, default = 0)) %>%
+  mutate(Admissions = ifelse(Admissions < 0, 0, Admissions))
+
+Irish_Profile <- Irish_Profile %>%
+  mutate(ICU = RequiringICUCovidCases -
+           lag(RequiringICUCovidCases, default = 0)) %>%
+  mutate(ICU = ifelse(ICU < 0, 0, ICU))
+
+
+```
+
+# Admissions
+
+```{r}
+ggAdmissions <- ggplot(Irish_Profile,aes(x=date(Date),y=Admissions)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(start_date, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Hospitalised COVID19 Cases over time') +
+  theme_light()
+
+ggAdmissions
+
+ggsave('images/COVID19Admissionslogscale.png', ggAdmissions,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+# ICU Admissions
+
+```{r}
+ggICU <- ggplot(Irish_Profile,aes(x=date(Date),y=ICU)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(start_date, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Cases') +
+  ggtitle('Hospitalised COVID19 Cases in ICU over time') +
+  theme_light()
+
+ggICU
+
+ggsave('images/COVID19ICUlogscale.png', ggICU,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```

@@ -1,0 +1,135 @@
+---
+title: "R0_Rt"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+
+To estimate R0 by several methods for the CV outbreaks.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(R0)
+library(EpiEstim)
+library(lubridate) # Sane date handling
+library(tidyverse)
+
+
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+```
+
+# Load the prepared data with the Irish data manually corrected
+
+```{r load data file}
+Irish_Current <- readRDS('data/Irish_Current.rds')
+```
+
+# R0 by several means
+
+```{r Ireland}
+LastDate = max(Irish_Current$Date)
+FirstDate = min(Irish_Current$Date)
+Duration = LastDate - FirstDate
+Duration
+
+res_parametric_si1 <- estimate_R(Irish_Current$ConfirmedCovidCases, method="parametric_si",
+           config = make_config(list(mean_si = 5,
+                                     std_si = 4)))
+plot(res_parametric_si1, legend = FALSE)
+res_parametric_si2 <- estimate_R(Irish_Current$ConfirmedCovidCases, method="parametric_si",
+           config = make_config(list(mean_si = 4,
+                                     std_si = 3)))
+plot(res_parametric_si2, legend = FALSE)
+
+res_uncertain_si <- estimate_R(Irish_Current$ConfirmedCovidCases,
+                               method="uncertain_si",
+           config = make_config(list(mean_si = 5, std_si = 5,
+                                     min_mean_si = 3, max_mean_si = 6,
+                                     std_mean_si = 4, std_std_si = 1,
+                                     min_std_si = 3, max_std_si = 6)))
+plot(res_uncertain_si, legend = FALSE)
+```
+
+```{r}
+Rt <- res_uncertain_si$R
+Rt$t_mid = (Rt$t_start+Rt$t_end)/2
+Rt$Date = Irish_Current$Date[Rt$t_mid]
+
+names(Rt) <- c("t_start", "t_end", "Mean", "Std", "Quantile.0.025", "Quantile.0.05", "Quantile.0.25", "Median", "Quantile.0.75", "Quantile.0.95", "Quantile.0.975", "t_mid", "Date")
+
+```
+
+```{r time varying}
+
+gRt <- ggplot(Rt,
+       aes(x=Date, ymin=Quantile.0.025, y=Median, ymax=Quantile.0.975)) +
+  geom_smooth(span=0.25,colour='blue',alpha=0.1) +
+  geom_hline(yintercept = 1,colour='red',linetype=5) +
+  geom_ribbon(colour='grey',alpha=0.3) +
+  geom_point() +
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  ggtitle('Risk of Infection - 7 day rolling estimate')+
+  scale_x_date(date_breaks = "2 week", date_labels = "%b-%d") +
+  scale_y_continuous(minor_breaks = c(seq(0,1, by=0.2),seq(seq(1,10,by=0.5)))) +
+  theme_light(base_size = 25) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  theme(strip.text = element_text(size=10)) +
+  theme(legend.position="none")
+
+gRt
+
+ggsave('images/R0_Weekly_Time_varying.png', gRt,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+# Short term R
+
+```{r shiort}
+Irish_Current_Short <- Irish_Current %>%
+  filter (Date > LastDate-35)
+res_uncertain_si_short <- estimate_R(Irish_Current_Short$ConfirmedCovidCases,
+                               method="uncertain_si",
+           config = make_config(list(mean_si = 5, std_si = 5,
+                                     min_mean_si = 3, max_mean_si = 6,
+                                     std_mean_si = 4, std_std_si = 1,
+                                     min_std_si = 3, max_std_si = 6)))
+plot(res_uncertain_si_short, legend = FALSE)
+
+Rt_short <- res_uncertain_si_short$R
+Rt_short$t_mid = (Rt_short$t_start+Rt_short$t_end)/2
+Rt_short$Date = Irish_Current_Short$Date[Rt_short$t_mid]
+
+names(Rt_short) <- c("t_start", "t_end", "Mean", "Std", "Quantile.0.025", "Quantile.0.05", "Quantile.0.25", "Median", "Quantile.0.75", "Quantile.0.95", "Quantile.0.975", "t_mid", "Date")
+
+```
+
+```{r time varying}
+
+gRt_short <- ggplot(Rt_short,
+       aes(x=Date, ymin=Quantile.0.025, y=Median, ymax=Quantile.0.975)) +
+  geom_smooth(span=0.25,colour='blue',alpha=0.1) +
+  geom_hline(yintercept = 1,colour='red',linetype=5) +
+  geom_ribbon(colour='grey',alpha=0.3) +
+  geom_point() +
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  ggtitle('Risk of Infection - 7 day rolling estimate')+
+  scale_x_date(date_breaks = "2 week", date_labels = "%b-%d") +
+  scale_y_continuous(minor_breaks = c(seq(0,1, by=0.2),seq(seq(1,10,by=0.5)))) +
+  theme_light(base_size = 25) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  theme(strip.text = element_text(size=10)) +
+  theme(legend.position="none")
+
+gRt_short
+
+ggsave('images/R0_Weekly_Time_varying_short.png', gRt_short,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
