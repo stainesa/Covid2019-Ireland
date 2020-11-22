@@ -28,3 +28,121 @@ knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 ```{r load data file}
 JHU_C <- readRDS('data/JHU_C.rds')
 ```
+
+```{r Fix data file to suit}
+str(JHU_C)
+table(JHU_C$type, useNA = 'ifany')
+table(JHU_C$country, useNA = 'ifany')
+table(JHU_C$province, useNA = 'ifany')
+
+JHU_C %>% filter(is.na(province)) 
+```
+```{r define areas for comparisons}
+EU <- c('Austria', 'Italy', 'Belgium', 'Latvia', 'Bulgaria', 'Lithuania', 'Croatia', 'Luxembourg', 'Cyprus', 'Malta', 'Czechia', 'Netherlands', 'Denmark', 'Poland', 'Estonia', 'Portugal', 'Finland', 'Romania', 'France', 'Slovakia', 'Germany', 'Slovenia', 'Greece', 'Spain', 'Hungary', 'Sweden', 'Ireland')
+
+Anglo <- c('United Kingdom','Australia','New Zealand', 'US', 'Ireland')
+
+Context <- c('Austria', 'Italy', 'Belgium', 'Czechia', 'Netherlands', 'Denmark', 'Portugal', 'Finland', 'France', 'Germany', 'Greece', 'Spain', 'Sweden', 'Ireland', 'United Kingdom','Australia','New Zealand')
+```
+
+```{r create datasets of cases and deaths and Ireland}
+JHU_Confirmed <- JHU_C %>%
+  filter(type == 'confirmed') %>%
+  mutate(cases = ifelse(cases < 0, 0, cases)) # Set negative cases to 0
+JHU_Dead      <- JHU_C %>%
+  filter(type == 'death') %>%
+  mutate(deaths = ifelse(cases < 0, 0, cases)) %>% # Set negative cases to 0
+  select(-cases)
+
+Ireland_Confirmed <- JHU_Confirmed %>% filter(country == 'Ireland')
+Ireland_Dead <- JHU_Dead %>% filter(country == 'Ireland')
+
+#Set of dates to play with
+Latest_date <- JHU_Confirmed %>%
+  group_by(country) %>%
+  filter(date == max(date)-15) %>%
+  ungroup()
+
+set.seed(6564)
+Latest_date_Context_c <- Latest_date %>%
+  filter(country %in% Context, province == '') %>%
+  mutate(date = as_date(ifelse(row_number() %% 2, date - months(5), date))) %>%
+  mutate(WEEKS = round(runif(n(),min=1,max=7),0)) %>%
+  mutate(date = as_date(date - weeks(WEEKS))) %>%
+  select(date:long) %>%
+  inner_join(JHU_Confirmed)
+
+set.seed(6564)
+Latest_date_Context_d <- Latest_date %>%
+  filter(country %in% Context, province == '') %>%
+  mutate(date = as_date(ifelse(row_number() %% 2, date - months(5), date))) %>%
+  mutate(WEEKS = round(runif(n(),min=1,max=7),0)) %>%
+  mutate(date = as_date(date - weeks(WEEKS))) %>%
+  select(date:long) %>%
+  inner_join(JHU_Dead)
+
+# Every other row labels moved.
+
+```
+
+```{r}
+
+ggContext <- ggplot(JHU_Confirmed %>%
+         filter(country %in% Context, province == ''),
+       aes(x=date(date), y=cases,
+           group=country, colour=country, label=country)) +
+  geom_smooth(data=Ireland_Confirmed,alpha=0.6,span=0.1,se=FALSE, size=.8) +
+  geom_smooth(aes(group=country), alpha=0.1, span=0.1, se=FALSE, size=.2) +
+  geom_jitter(alpha=0.1, size=0.2) +
+  ggrepel::geom_text_repel(data=Latest_date_Context_c,
+                        aes(y=cases,label=country)) +
+  scale_x_date(date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed COVID19 Cases over time (smoothed)',
+          subtitle = 'Selected European countries') +
+  guides(fill=FALSE) +
+  guides(colour=FALSE) +
+  theme_light()
+
+ggContext
+
+ggsave('images/Ireland_cases_in_context.png', ggContext,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+
+```{r Deaths}
+
+ggDeathsContext <- ggplot(JHU_Dead %>%
+         filter(country %in% Context, province == ''),
+       aes(x=date(date), y=deaths,
+           group=country, colour=country, label=country)) +
+  geom_smooth(data=Ireland_Dead,alpha=0.6,span=0.3,se=FALSE, size=.8) +
+  geom_smooth(aes(group=country), alpha=0.1, span=0.3, se=FALSE, size=.2) +
+  geom_jitter(alpha=0.1, size=0.2) +
+  ggrepel::geom_text_repel(data=Latest_date_Context_d,
+                        aes(y=deaths,label=country)) +
+  scale_x_date(date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Deaths (log scale)') +
+  ggtitle('Confirmed COVID19 deaths over time') +
+  guides(fill=FALSE) +
+  guides(colour=FALSE) +
+  theme_light()
+
+ggDeathsContext
+
+ggsave('images/Ireland_deaths_in_context.png', ggDeathsContext,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+
+
+
+
+

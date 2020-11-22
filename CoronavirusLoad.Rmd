@@ -90,6 +90,8 @@ saveRDS(Irish_Profile, file='data/Irish_Profile.rds')
 
 ```{r}
 CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
+rm(CountyCSV)
+CountyCSV <- read_csv('https://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv')
 
 saveRDS(CountyCSV, file='data/CountyCSV.rds')
 ```
@@ -114,7 +116,7 @@ Datespan <- as_tibble(start_date + days(0:n_days)) %>%
   rename(date = value) # I row per date in the two datasources
 
 Ireland_corrected <- Irish_Current %>%
-  mutate(province = NA_character_, country='Ireland') %>%
+  mutate(province = '', country='Ireland') %>%
   rename(date = Date, province =  province, country = country,
          lat = X, long = Y, confirmed = ConfirmedCovidCases,
          Total.Cases = TotalConfirmedCovidCases,
@@ -133,8 +135,12 @@ Ireland_corrected <- Irish_Current %>%
                values_to = 'cases',
                names_to = 'type')
 
-# Replace NA with 0 in cases
+table(Ireland_corrected$province, Ireland_corrected$country, useNA = 'ifany')
+
+
+# Replace NA with 0 in cases and province (comes from merge with Datespan)
 Ireland_corrected$cases[is.na(Ireland_corrected$cases)] <- 0
+Ireland_corrected$province[is.na(Ireland_corrected$province)] <- ''
 
 
 Ireland_corrected %>%
