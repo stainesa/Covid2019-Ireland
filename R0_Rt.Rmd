@@ -120,7 +120,7 @@ gRt_short <- ggplot(Rt_short,
   geom_point() +
   xlab('Date of Estimate') + ylab('Estimated R0') +
   ggtitle('Risk of Infection - 7 day rolling estimate')+
-  scale_x_date(date_breaks = "2 week", date_labels = "%b-%d") +
+  scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,1, by=0.2),seq(seq(1,10,by=0.5)))) +
   coord_cartesian(ylim=c(0,6)) +
   theme_light(base_size = 25) +
