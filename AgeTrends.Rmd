@@ -35,7 +35,7 @@ Irish_Profile <- readRDS('data/Irish_Profile.rds')
 
 ```{r}
 Gender <- Irish_Profile %>%
-  select(Date,FID,Male,Female,CovidCasesConfirmed) 
+  dplyr:::select(Date,FID,Male,Female,CovidCasesConfirmed) 
 
 ##Fix a typo
   Male.53   <- Gender$Female[Gender$FID == 53]

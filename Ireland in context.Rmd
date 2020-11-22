@@ -1,0 +1,30 @@
+---
+title: "Ireland in Context"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+
+To show Irish data in context.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(lubridate) # Sane date handling
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+```
+
+# Load the prepared data with the Irish data manually corrected
+
+```{r load data file}
+JHU_C <- readRDS('data/JHU_C.rds')
+```

@@ -17,7 +17,7 @@ To estimate R0 by several methods for the CV outbreaks.
 
 ```{r setup, include=FALSE}
 rm(list=ls())
-library(R0)
+
 library(EpiEstim)
 library(lubridate) # Sane date handling
 library(tidyverse)
@@ -26,13 +26,13 @@ library(tidyverse)
 knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 ```
 
-# Load the prepared data with the Irish data manually corrected
+# Load the Irish data
 
 ```{r load data file}
 Irish_Current <- readRDS('data/Irish_Current.rds')
 ```
 
-# R0 by several means
+# R0 
 
 ```{r Ireland}
 LastDate = max(Irish_Current$Date)
@@ -51,14 +51,12 @@ plot(res_parametric_si2, legend = FALSE)
 
 res_uncertain_si <- estimate_R(Irish_Current$ConfirmedCovidCases,
                                method="uncertain_si",
-           config = make_config(list(mean_si = 5, std_si = 5,
-                                     min_mean_si = 3, max_mean_si = 6,
-                                     std_mean_si = 4, std_std_si = 1,
-                                     min_std_si = 3, max_std_si = 6)))
+           config = make_config(list(mean_si = 6, std_mean_si = 3,
+                                     min_mean_si = 4, max_mean_si = 8,
+                                     std_si = 1, std_std_si = 1,
+                                     min_std_si = 0.5, max_std_si = 1.5)))
 plot(res_uncertain_si, legend = FALSE)
-```
 
-```{r}
 Rt <- res_uncertain_si$R
 Rt$t_mid = (Rt$t_start+Rt$t_end)/2
 Rt$Date = Irish_Current$Date[Rt$t_mid]
@@ -92,15 +90,15 @@ ggsave('images/R0_Weekly_Time_varying.png', gRt,
 
 # Short term R
 
-```{r shiort}
+```{r short}
 Irish_Current_Short <- Irish_Current %>%
   filter (Date > LastDate-35)
 res_uncertain_si_short <- estimate_R(Irish_Current_Short$ConfirmedCovidCases,
                                method="uncertain_si",
-           config = make_config(list(mean_si = 5, std_si = 5,
-                                     min_mean_si = 3, max_mean_si = 6,
-                                     std_mean_si = 4, std_std_si = 1,
-                                     min_std_si = 3, max_std_si = 6)))
+           config = make_config(list(mean_si = 6, std_mean_si = 3,
+                                     min_mean_si = 4, max_mean_si = 8,
+                                     std_si = 1, std_std_si = 1,
+                                     min_std_si = 0.5, max_std_si = 1.5)))
 plot(res_uncertain_si_short, legend = FALSE)
 
 Rt_short <- res_uncertain_si_short$R
@@ -132,4 +130,12 @@ gRt_short
 
 ggsave('images/R0_Weekly_Time_varying_short.png', gRt_short,
        units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+```{r}
+Irish_Current$Pct = Irish_Current$ConfirmedCovidCases/lag(Irish_Current$ConfirmedCovidCases,1)
+Irish_Current$Pct_Median = RcppRoll::roll_mean(Irish_Current$Pct,n=7,fill=c(0))
+Prediction <- as_tibble( seq(LastDate,LastDate+16,by=1))
+names(Prediction) <- 'Date'
+
 ```
