@@ -60,6 +60,7 @@ coronavirus %>%
               values_from = total_cases) %>%
   arrange(-confirmed)
 ```
+
 ## Correct the Irish data
 
 The Irish data contain some errors in the JHU dataset, and are less up-to-date. We download the data from the OG website
@@ -71,9 +72,29 @@ Two datasets mashed together. One up to date, the other two days behind
 
 ```{r Ireland}
 Irish_Open_data <- read_csv('https://opendata.arcgis.com/datasets/d8eb52d56273413b84b0187a4e9117be_0.csv')
+```
 
+## Irish current data
+
+```{r Irish current data}
 Irish_Current <- Irish_Open_data %>% dplyr::select(X:TotalCovidDeaths,FID) %>%
   mutate(Date = as_date(Date))
+
+# fix Irish current if needed
+#Add <- tail(Irish_Current,n=1)
+#Add
+#Add$Date <- Add$Date+1
+#Add$ConfirmedCovidCases = 1718
+#Add$TotalConfirmedCovidCases = Add$TotalConfirmedCovidCases + 1718
+#Add
+#Irish_Current = rbind(Irish_Current,Add)
+saveRDS(Irish_Current, file='data/Irish_Current.rds')
+
+```
+
+## Irish Profile data
+
+```{r}
 Irish_Profile <- Irish_Open_data %>% dplyr::select(StatisticsProfileDate:FID) %>%
   mutate(province = NA_character_, country='Ireland') %>%
   rename(date = StatisticsProfileDate) %>%
@@ -82,7 +103,16 @@ Irish_Profile <- Irish_Open_data %>% dplyr::select(StatisticsProfileDate:FID) %>
   select(Date,CovidCasesConfirmed:country)
 
 
-saveRDS(Irish_Current, file='data/Irish_Current.rds')
+Irish_Profile <- Irish_Profile %>%
+  mutate(Admissions = HospitalisedCovidCases -
+           lag(HospitalisedCovidCases, default = 0)) %>%
+  mutate(Admissions = ifelse(Admissions < 0, 0, Admissions))
+
+Irish_Profile <- Irish_Profile %>%
+  mutate(ICU = RequiringICUCovidCases -
+           lag(RequiringICUCovidCases, default = 0)) %>%
+  mutate(ICU = ifelse(ICU < 0, 0, ICU))
+
 saveRDS(Irish_Profile, file='data/Irish_Profile.rds')
 ```
 
@@ -106,6 +136,28 @@ Hospital_SummaryCSV <- read_csv('https://opendata-geohive.hub.arcgis.com/dataset
 saveRDS(Hospital_SummaryCSV, file='data/Hospital_SummaryCSV.rds')
 ```
 
+## LaboratoryLocalTimeSeriesHistoricView
+
+From :- https://data.gov.ie/dataset/laboratorylocaltimeserieshistoricview1/resource/0d9e8b56-1aac-464a-bb39-38c6e5697bb7
+
+```{r}
+Lab_RecordsCSV <- read_csv('https://opendata-geohive.hub.arcgis.com/datasets/f6d6332820ca466999dbd852f6ad4d5a_0.csv?outSR=%7B%22latestWkid%22%3A3857%2C%22wkid%22%3A102100%7D')
+
+# This file is cumulative data only
+# Make daily data
+Lab_Records <- Lab_RecordsCSV %>%
+  mutate(Date = as_date(Date_HPSC)) %>%
+  mutate(TestsDone = TotalLabs -
+           lag(TotalLabs, default = 0)) %>%
+  mutate(TestsPos = Positive -
+           lag(Positive, default = 0)) %>%
+  mutate(PosRate = 100*round(TestsPos/TestsDone,3))
+
+saveRDS(Lab_Records, file='data/Lab_Records.rds')
+
+```
+
+## Fix JHU data
 ```{r}
 
 # This file has no rows for days when there are no cases.

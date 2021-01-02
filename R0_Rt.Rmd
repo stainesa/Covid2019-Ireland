@@ -30,6 +30,7 @@ knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 
 ```{r load data file}
 Irish_Current <- readRDS('data/Irish_Current.rds')
+Linked <-  readRDS('data/Linked.rds')
 ```
 
 # R0 
@@ -93,7 +94,7 @@ ggsave('images/R0_Weekly_Time_varying.png', gRt,
 
 ```{r short}
 Irish_Current_Short <- Irish_Current %>%
-  filter (Date > LastDate-35)
+  filter (Date > LastDate-45)
 res_uncertain_si_short <- estimate_R(Irish_Current_Short$ConfirmedCovidCases,
                                method="uncertain_si",
            config = make_config(list(mean_si = 6, std_mean_si = 3,
@@ -102,7 +103,8 @@ res_uncertain_si_short <- estimate_R(Irish_Current_Short$ConfirmedCovidCases,
                                      min_std_si = 0.5, max_std_si = 1.5)))
 plot(res_uncertain_si_short, legend = FALSE)
 
-Rt_short <- res_uncertain_si_short$R
+Rt_short <- res_uncertain_si_short$R %>%
+  filter(t_start > 7)
 Rt_short$t_mid = (Rt_short$t_start+Rt_short$t_end)/2
 Rt_short$Date = Irish_Current_Short$Date[Rt_short$t_mid]
 
@@ -121,8 +123,8 @@ gRt_short <- ggplot(Rt_short,
   xlab('Date of Estimate') + ylab('Estimated R0') +
   ggtitle('Risk of Infection - 7 day rolling estimate')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
-  scale_y_continuous(minor_breaks = c(seq(0,1, by=0.2),seq(seq(1,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,6)) +
+  scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
+  coord_cartesian(ylim=c(0,2.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -139,5 +141,187 @@ Irish_Current$Pct = Irish_Current$ConfirmedCovidCases/lag(Irish_Current$Confirme
 Irish_Current$Pct_Median = RcppRoll::roll_mean(Irish_Current$Pct,n=7,fill=c(0))
 Prediction <- as_tibble( seq(LastDate,LastDate+16,by=1))
 names(Prediction) <- 'Date'
+
+```
+
+## Disperse excess cases evenly
+Assume 8% of cases are repeats etc.
+Assume issues started 22/12/20 and distribute the extra positive tests smoothly over the subsequent days using a 3 day running median.
+
+
+```{r}
+ValidTestPos = 1 - 0.08 # 8% of cases reported are not real.
+
+Linked <- Linked %>%
+  mutate(Disperse = Date > '2020-12-22') %>%
+  mutate(Dispersed = ifelse(Disperse,(TestsPos*ValidTestPos- ConfirmedCovidCases),0)) %>%
+  mutate(SmoothDispersed = runmed(Dispersed,3,endrule='median')) %>%
+  mutate(CaseEst = round(ConfirmedCovidCases + SmoothDispersed,0))
+attributes(Linked$SmoothDispersed) <- NULL
+attributes(Linked$CaseEst) <- NULL
+sum(Linked$ConfirmedCovidCases)
+sum(Linked$CaseEst)
+sum(Linked$TestsPos)
+sum(Linked$CaseEst)/ sum(Linked$TestsPos)
+
+  start_date = min(Linked$Date)
+  end_date = max(Linked$Date) + days(14)
+
+
+  ggplot(Linked,aes(x=ConfirmedCovidCases,y=CaseEst)) +geom_point()
+```
+
+```{r}
+Linked_Short <- Linked %>%
+  filter (Date > LastDate-45)
+
+ggCaseEst <- ggplot(Linked_Short,
+                    aes(x=date(Date),y=CaseEst)) +
+  geom_smooth(aes(y=ConfirmedCovidCases, colour='pink' ),
+              alpha=0.1, span=0.2, se=FALSE) +
+  geom_point(aes(y=ConfirmedCovidCases), alpha=0.3, colour='red') +
+  geom_path(aes(y=ConfirmedCovidCases), alpha=0.1, colour='pink') +
+  geom_smooth(aes(colour='lightgreen'),alpha=0.1, span=0.2, se=FALSE) +
+  geom_point(alpha=0.3,colour='darkgreen') +
+  geom_path(alpha=0.1,colour='green') +
+    scale_x_date(limits=c(LastDate-45, end_date-7),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  scale_colour_manual(name='Cases',
+                      values=c('pink' = 'pink', 'lightgreen' = 'lightgreen'),
+                      labels = c('Estimated', 'Confirmed')) +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed vs Estimated COVID19 cases over time') +
+  theme_light()
+
+ggCaseEst
+
+ggsave('images/COVID19CasesEst.png', ggCaseEst,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+```{r CONF}
+D_res_uncertain_si_shortCONF <- estimate_R(Linked_Short$ConfirmedCovidCases,
+                               method="uncertain_si",
+           config = make_config(list(mean_si = 6, std_mean_si = 3,
+                                     min_mean_si = 4, max_mean_si = 8,
+                                     std_si = 1, std_std_si = 1,
+                                     min_std_si = 0.5, max_std_si = 1.5)))
+plot(D_res_uncertain_si_shortCONF, legend = FALSE)
+
+D_Rt_shortCONF <- D_res_uncertain_si_shortCONF$R %>%
+  filter(t_start > 7)
+D_Rt_shortCONF$t_mid = (D_Rt_shortCONF$t_start+D_Rt_shortCONF$t_end)/2
+D_Rt_shortCONF$Date = Linked_Short$Date[D_Rt_shortCONF$t_mid]
+
+names(D_Rt_shortCONF) <- c("t_start", "t_end", "Mean", "Std", "Quantile.0.025", "Quantile.0.05", "Quantile.0.25", "Median", "Quantile.0.75", "Quantile.0.95", "Quantile.0.975", "t_mid", "Date")
+
+```
+
+```{r time varying CONF}
+
+gD_Rt_shortCONF <- ggplot(D_Rt_shortCONF,
+       aes(x=Date, ymin=Quantile.0.025, y=Median, ymax=Quantile.0.975)) +
+  geom_smooth(span=0.25,colour='blue',alpha=0.1) +
+  geom_hline(yintercept = 1,colour='red',linetype=5) +
+  geom_ribbon(colour='grey',alpha=0.3) +
+  geom_point() +
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed cases')+
+  scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
+  scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
+  coord_cartesian(ylim=c(0,2.5)) +
+  theme_light(base_size = 25) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  theme(strip.text = element_text(size=10)) +
+  theme(legend.position="none")
+
+gD_Rt_shortCONF
+
+ggsave('images/R0_Weekly_Time_varying_short_CONFIRMED_cases.png', gD_Rt_shortCONF,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+```{r EST}
+D_res_uncertain_si_shortEST <- estimate_R(Linked_Short$CaseEst,
+                               method="uncertain_si",
+           config = make_config(list(mean_si = 6, std_mean_si = 3,
+                                     min_mean_si = 4, max_mean_si = 8,
+                                     std_si = 1, std_std_si = 1,
+                                     min_std_si = 0.5, max_std_si = 1.5)))
+plot(D_res_uncertain_si_shortEST, legend = FALSE)
+
+
+D_Rt_shortEST <- D_res_uncertain_si_shortEST$R %>%
+  filter(t_start > 7)
+D_Rt_shortEST$t_mid = (D_Rt_shortEST$t_start+D_Rt_shortEST$t_end)/2
+D_Rt_shortEST$Date = Linked_Short$Date[D_Rt_shortEST$t_mid]
+
+names(D_Rt_shortEST) <- c("t_start", "t_end", "Mean", "Std", "Quantile.0.025", "Quantile.0.05", "Quantile.0.25", "Median", "Quantile.0.75", "Quantile.0.95", "Quantile.0.975", "t_mid", "Date")
+
+```
+
+```{r time varying EST}
+
+gD_Rt_shortEST <- ggplot(D_Rt_shortEST,
+       aes(x=Date, ymin=Quantile.0.025, y=Median, ymax=Quantile.0.975)) +
+  geom_smooth(span=0.25,colour='blue',alpha=0.1) +
+  geom_hline(yintercept = 1,colour='red',linetype=5) +
+  geom_ribbon(colour='grey',alpha=0.3) +
+  geom_point() +
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Estimated cases')+
+  scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
+  scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
+  coord_cartesian(ylim=c(0,2.5)) +
+  theme_light(base_size = 25) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  theme(strip.text = element_text(size=10)) +
+  theme(legend.position="none")
+
+gD_Rt_shortEST
+
+ggsave('images/R0_Weekly_Time_varying_short_ESTIMATED_cases.png', gD_Rt_shortEST,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
+
+```{r}
+D_Rt <- D_Rt_shortCONF %>%
+  inner_join(D_Rt_shortEST, by='Date', suffix=c('.CONF','.EST'))
+
+
+gD_Rt <- ggplot(D_Rt, aes(x=Date)) +
+  geom_ribbon(aes(ymin=Quantile.0.025.CONF, y=Median.CONF, ymax=Quantile.0.975.CONF),  fill='grey30', alpha=0.1) +
+  
+    geom_ribbon(aes(ymin=Quantile.0.025.EST, y=Median.EST, ymax=Quantile.0.975.EST), fill='grey30', alpha=0.1) +
+
+  geom_point(aes(y=Median.CONF, colour='pink')) +
+  geom_smooth(aes(y=Median.CONF, colour='pink'),
+              span=0.25, alpha=0.2) +
+  
+  geom_hline(yintercept = 1, colour='red',linetype=5) +
+
+  geom_point(aes(y=Median.EST, colour='lightgreen')) +
+  geom_smooth(aes(y=Median.EST, colour='lightgreen'),
+              span=0.25, alpha=0.2) +
+  
+  xlab('Date of Estimate') + ylab('Estimated R0') +
+  ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed and Estimated cases') +
+  scale_colour_manual(name='Cases',
+                      values=c('pink' = 'pink', 'lightgreen' = 'lightgreen'),
+                      labels = c('Estimated', 'Confirmed')) +
+  scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
+  scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
+  coord_cartesian(ylim=c(0,2.8)) +
+  theme_light(base_size = 25) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) + 
+  theme(strip.text = element_text(size=10))
+gD_Rt
+
+ggsave('images/R0_Weekly_Time_varying_short_BOTH_cases.png', gD_Rt,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+
 
 ```
