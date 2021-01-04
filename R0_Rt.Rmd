@@ -172,6 +172,38 @@ sum(Linked$CaseEst)/ sum(Linked$TestsPos)
 ```
 
 ```{r}
+
+ggDiffCases <- ggplot(Linked,
+                      aes(x=date(Date))) +
+  geom_path(aes(y=CaseEst), alpha=0.1) +
+  geom_smooth(aes(y=CaseEst, colour='lightgreen'),
+              alpha=0.1,span=0.2,se=FALSE) +
+  geom_point(aes(y=CaseEst, colour='lightgreen'),
+             alpha=0.3) +
+  geom_path(aes(y = ConfirmedCovidCases, colour='pink'),
+            alpha=0.1) +
+  geom_smooth(aes(y = ConfirmedCovidCases, colour='pink'),
+              alpha=0.1,span=0.2,se=FALSE) +
+  geom_point(aes(y = ConfirmedCovidCases, colour='pink'), alpha=0.3) + 
+  scale_x_date(limits=c(as_date('2020-12-14'), end_date-14),
+               date_breaks = "1 week",
+               date_labels = "%d-%b",
+               date_minor_breaks = "1 week") +
+  scale_colour_manual(name='Cases',
+                      values=c('pink' = 'pink', 'lightgreen' = 'lightgreen'),
+                      labels = c('Estimated', 'Confirmed')) +
+  xlab('Date') + ylab('Difference') +
+  ggtitle('Difference between Positive tests and Confirmed cases over time') +
+  theme_light()
+
+ggDiffCases
+
+ggsave('images/Diff.png', ggDiff,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+
+```
+
+```{r}
 Linked_Short <- Linked %>%
   filter (Date > LastDate-45)
 
@@ -275,7 +307,7 @@ gD_Rt_shortEST <- ggplot(D_Rt_shortEST,
   ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Estimated cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,2.5)) +
+  coord_cartesian(ylim=c(0,3.0)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -299,13 +331,13 @@ gD_Rt <- ggplot(D_Rt, aes(x=Date)) +
 
   geom_point(aes(y=Median.CONF, colour='pink')) +
   geom_smooth(aes(y=Median.CONF, colour='pink'),
-              span=0.25, alpha=0.2) +
+              span=0.25, alpha=0.7) +
   
   geom_hline(yintercept = 1, colour='red',linetype=5) +
 
   geom_point(aes(y=Median.EST, colour='lightgreen')) +
   geom_smooth(aes(y=Median.EST, colour='lightgreen'),
-              span=0.25, alpha=0.2) +
+              span=0.25, alpha=0.4) +
   
   xlab('Date of Estimate') + ylab('Estimated R0') +
   ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed and Estimated cases') +
@@ -314,7 +346,7 @@ gD_Rt <- ggplot(D_Rt, aes(x=Date)) +
                       labels = c('Estimated', 'Confirmed')) +
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,2.8)) +
+  coord_cartesian(ylim=c(0,3.0)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10))

@@ -262,6 +262,6 @@ ggDiff <- ggplot(Linked,aes(x=date(Date),y=Diff)) +
 
 ggDiff
 
-ggsave('images/Diff.png', ggDiffPct,
+ggsave('images/Diff.png', ggDiff,
        device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
 ```
