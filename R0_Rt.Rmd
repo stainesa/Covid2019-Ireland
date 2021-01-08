@@ -124,7 +124,7 @@ gRt_short <- ggplot(Rt_short,
   ggtitle('Risk of Infection - 7 day rolling estimate')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,2.5)) +
+  coord_cartesian(ylim=c(0,3.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -264,7 +264,7 @@ gD_Rt_shortCONF <- ggplot(D_Rt_shortCONF,
   ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,2.5)) +
+  coord_cartesian(ylim=c(0,3.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -307,7 +307,7 @@ gD_Rt_shortEST <- ggplot(D_Rt_shortEST,
   ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Estimated cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,3.0)) +
+  coord_cartesian(ylim=c(0,3.3)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -346,7 +346,7 @@ gD_Rt <- ggplot(D_Rt, aes(x=Date)) +
                       labels = c('Estimated', 'Confirmed')) +
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,3.0)) +
+  coord_cartesian(ylim=c(0,3.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10))
@@ -355,5 +355,13 @@ gD_Rt
 ggsave('images/R0_Weekly_Time_varying_short_BOTH_cases.png', gD_Rt,
        units = 'cm', dpi = 600, width = 21, height = 15)
 
+
+```
+
+
+```{r}
+write_csv(Rt,'data/D_Rt.csv')
+write_csv(D_Rt_shortCONF,'data/D_Rt_short_CONF.csv')
+write_csv(D_Rt_shortEST,'data/D_Rt_short_EST.csv')
 
 ```
