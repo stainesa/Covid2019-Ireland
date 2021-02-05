@@ -1,0 +1,94 @@
+---
+title: "Fix  country names"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+
+JHU and OWID use different country names and only OWID has ISO codes for countries.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(lubridate) # Sane date handling
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+```
+
+# Load the prepared data
+
+```{r load data file}
+JHU_C <- readRDS('data/JHU_C.rds')
+Population <- readRDS('data/Population.rds')
+```
+
+```{r Fix data file to suit}
+str(JHU_C)
+  table(JHU_C$type, useNA = 'ifany')
+  table(JHU_C$country, useNA = 'ifany')
+  table(JHU_C$province, useNA = 'ifany')
+
+JHU_C %>% filter(is.na(province)) # Confine to country level data
+
+str(Population)
+  paste(Population$location, sep='\t')
+  Population <- Population %>% filter(!is.na(iso_code)) # No iso code for International
+
+```
+
+Fix country names for JHU/OWID
+
+```{r}
+JHUNames <- JHU_C %>%
+  select(country) %>%
+  distinct() %>%
+  mutate(location = country)  #Copy existing names to a new variable
+
+#Manually fix anomalies
+JHUNames$location[JHUNames$country == 'Holy See'] = 'Vatican'
+JHUNames$location[JHUNames$country == 'US'] = 'United States'
+JHUNames$location[JHUNames$country == 'Burma'] = 'Myanmar'
+JHUNames$location[JHUNames$country == 'Korea, South'] = 'South Korea'
+JHUNames$location[JHUNames$country == 'Timor-Leste'] = 'Timor'
+JHUNames$location[JHUNames$country == 'Cabo Verde'] = 'Cape Verde'
+JHUNames$location[JHUNames$country == 'Taiwan*'] = 'Taiwan'
+JHUNames$location[JHUNames$country == 'West Bank and Gaza'] = 'Palestine'
+JHUNames$location[JHUNames$country == 'West Bank and Gaza'] = 'Palestine'
+JHUNames$location[JHUNames$country == 'Congo (Brazzaville)'] = 'Congo'
+JHUNames$location[JHUNames$country == 'Congo (Kinshasa)'] = 'Democratic Republic of Congo'
+
+Population$population[Population$iso_code == 'CHN'] =
+  Population$population[Population$iso_code == 'CHN'] +
+  Population$population[Population$iso_code == 'HKG'] # Add HK pop to China
+
+## Check
+JHUNames %>% anti_join(Population, by = c( 'location' = 'location')) # Two ships
+Population %>% anti_join(JHUNames, by = c('location' = 'location')) # HK and World
+```
+
+
+#Link JHU country names and ISO codes
+```{r}
+Population <- Population %>%
+  inner_join(JHUNames, by = c('location'))
+
+JHU_C_iso <- JHU_C %>%
+  inner_join(Population, by = c('country' = 'country')) %>%
+  mutate(casesAdj =  ifelse(cases < 0, 0, cases)) %>% # Set negative cases to 0
+  mutate(rate = 10^6*casesAdj/population) # Rate is set to zero if case numbers under 0
+
+rm(JHUNames,JHU_C, Population)
+```
+
+```{r}
+saveRDS(JHU_C_iso, file='data/JHU_C_iso.rds')
+
+```

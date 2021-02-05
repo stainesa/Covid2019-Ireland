@@ -84,8 +84,8 @@ Irish_Current <- Irish_Open_data %>% dplyr::select(X:TotalCovidDeaths,FID) %>%
 #Add <- tail(Irish_Current,n=1)
 #Add
 #Add$Date <- Add$Date+1
-#Add$ConfirmedCovidCases = 1718
-#Add$TotalConfirmedCovidCases = Add$TotalConfirmedCovidCases + 1718
+#Add$ConfirmedCovidCases = 6888
+#Add$TotalConfirmedCovidCases = #Add$TotalConfirmedCovidCases + 6888
 #Add
 #Irish_Current = rbind(Irish_Current,Add)
 saveRDS(Irish_Current, file='data/Irish_Current.rds')
@@ -215,3 +215,14 @@ saveRDS(JHU_C, file='data/JHU_C.rds')
 
 ```
 
+
+## OWID data
+
+```{r}
+OWID <- read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv", guess_max=10000)
+  str(OWID)
+  
+Population <- OWID %>% select(iso_code,location,population) %>% distinct()
+  saveRDS(OWID, file='data/OWID.rds')
+  saveRDS(Population, file='data/Population.rds')
+```

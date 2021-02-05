@@ -26,76 +26,90 @@ knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 # Load the prepared data with the Irish data manually corrected
 
 ```{r load data file}
-JHU_C <- readRDS('data/JHU_C.rds')
+JHU_C_iso <- readRDS('data/JHU_C_iso.rds')
+
 ```
 
 ```{r Fix data file to suit}
-str(JHU_C)
-table(JHU_C$type, useNA = 'ifany')
-table(JHU_C$country, useNA = 'ifany')
-table(JHU_C$province, useNA = 'ifany')
+str(JHU_C_iso)
+table(JHU_C_iso$type, useNA = 'ifany')
+table(JHU_C_iso$country, useNA = 'ifany')
+table(JHU_C_iso$province, useNA = 'ifany')
 
-JHU_C %>% filter(is.na(province)) 
+JHU_C_iso %>% filter(is.na(province))
 ```
+
+# Define areas for comparison
+
 ```{r define areas for comparisons}
 EU <- c('Austria', 'Italy', 'Belgium', 'Latvia', 'Bulgaria', 'Lithuania', 'Croatia', 'Luxembourg', 'Cyprus', 'Malta', 'Czechia', 'Netherlands', 'Denmark', 'Poland', 'Estonia', 'Portugal', 'Finland', 'Romania', 'France', 'Slovakia', 'Germany', 'Slovenia', 'Greece', 'Spain', 'Hungary', 'Sweden', 'Ireland')
 
 Anglo <- c('United Kingdom','Australia','New Zealand', 'US', 'Ireland')
 
 Context <- c('Austria', 'Italy', 'Belgium', 'Czechia', 'Netherlands', 'Denmark', 'Portugal', 'Finland', 'France', 'Germany', 'Greece', 'Spain', 'Sweden', 'Ireland', 'United Kingdom','Australia','New Zealand')
+
+Islands <- c()
 ```
 
 ```{r create datasets of cases and deaths and Ireland}
-JHU_Confirmed <- JHU_C %>%
+JHU_Confirmed <- JHU_C_iso %>%
   filter(type == 'confirmed') %>%
-  mutate(cases = ifelse(cases < 0, 0, cases)) # Set negative cases to 0
-JHU_Dead      <- JHU_C %>%
+  mutate(cases = casesAdj) # Set negative cases to 0
+
+JHU_Dead      <- JHU_C_iso %>%
   filter(type == 'death') %>%
-  mutate(deaths = ifelse(cases < 0, 0, cases)) %>% # Set negative cases to 0
-  select(-cases)
+  mutate(deaths = casesAdj) # Set negative cases to 0
 
 Ireland_Confirmed <- JHU_Confirmed %>% filter(country == 'Ireland')
 Ireland_Dead <- JHU_Dead %>% filter(country == 'Ireland')
+```
+
+## Locate labels
+Reasonable set of defaults for label positions.
+
+```{r}
+set.seed(6564)
+Max_date = max(JHU_C_iso$date)
+Min_date = min(JHU_C_iso$date)
+Span = as.numeric(Max_date - Min_date)
 
 #Set of dates to play with
-Latest_date <- JHU_Confirmed %>%
-  group_by(country) %>%
-  filter(date == max(date)-15) %>%
-  ungroup()
-
-set.seed(6564)
-Latest_date_Context_c <- Latest_date %>%
-  filter(country %in% Context, province == '') %>%
-  mutate(date = as_date(ifelse(row_number() %% 2, date - months(5), date))) %>%
-  mutate(WEEKS = round(runif(n(),min=1,max=7),0)) %>%
+Latest_date <- JHU_C_iso %>%
+  group_by(country, type) %>% # Type within country
+  mutate(weight = 1 - 2*as.numeric(Max_date - date)/Span) %>% #weight more recent ranks more heavily
+  mutate(wtrate = rate * weight) %>%
+  mutate(rank = round(rank(-wtrate))) %>%
+  filter(rank == 50) %>%
+  ungroup() %>%
+  mutate(WEEKS = round(runif(n(),min=-1,max=+15),0)) %>% # Spread dates over 12 weeks
   mutate(date = as_date(date - weeks(WEEKS))) %>%
-  select(date:long) %>%
-  inner_join(JHU_Confirmed)
+  select(-WEEKS) %>%
+  mutate(date = replace(date, country == 'Ireland', as_date('2021-01-06'))) %>%
+  mutate(rate = replace(rate, country == 'Ireland', 1050))
 
-set.seed(6564)
-Latest_date_Context_d <- Latest_date %>%
-  filter(country %in% Context, province == '') %>%
-  mutate(date = as_date(ifelse(row_number() %% 2, date - months(5), date))) %>%
-  mutate(WEEKS = round(runif(n(),min=1,max=7),0)) %>%
-  mutate(date = as_date(date - weeks(WEEKS))) %>%
-  select(date:long) %>%
-  inner_join(JHU_Dead)
-
-# Every other row labels moved.
 
 ```
+
+# Plots of case numbers
 
 ```{r}
 
 ggContext <- ggplot(JHU_Confirmed %>%
          filter(country %in% Context, province == ''),
        aes(x=date(date), y=cases,
-           group=country, colour=country, label=country)) +
-  geom_smooth(data=Ireland_Confirmed,alpha=0.6,span=0.1,se=FALSE, size=.8) +
-  geom_smooth(aes(group=country), alpha=0.1, span=0.1, se=FALSE, size=.2) +
-  geom_jitter(alpha=0.1, size=0.2) +
-  ggrepel::geom_text_repel(data=Latest_date_Context_c,
-                        aes(y=cases,label=country)) +
+           group=country, colour=country, label=country))+
+  geom_smooth(data = Ireland_Confirmed,
+              alpha = 0.6, span = 0.1,
+              se = FALSE, size = .8) +
+  geom_smooth(aes(group = country),
+              alpha = 0.05, span = 0.1,
+              se = FALSE, size = 0.2) +
+  geom_jitter(alpha = 0.1, size = 0.2) +
+  ggrepel::geom_text_repel(data = Latest_date %>%
+                             filter(country %in% Context,
+                                    type == 'confirmed'),
+                           max.overlaps = 20,
+                        aes(x= date, y = rate*10, label = country)) +
   scale_x_date(date_breaks = "1 month",
                date_labels = "%b",
                date_minor_breaks = "1 week") +
@@ -105,6 +119,10 @@ ggContext <- ggplot(JHU_Confirmed %>%
           subtitle = 'Selected European countries') +
   guides(fill=FALSE) +
   guides(colour=FALSE) +
+  geom_label(aes(x = as_date(min(date) + Span*5/100),
+                 y = max(cases)- max(cases*5/100)),
+             colour = 'blue', fill = 'lightblue',
+             label='@isagcovid19') +
   theme_light()
 
 ggContext
@@ -113,24 +131,84 @@ ggsave('images/Ireland_cases_in_context.png', ggContext,
        units = 'cm', dpi = 600, width = 21, height = 15)
 ```
 
+# Plots of case rates per million
+
+```{r}
+#Locate labels
+ggContextRates <- ggplot(JHU_Confirmed %>%
+         filter(country %in% Context, province == ''),
+       aes(x=date(date), y=rate,
+           group=country, colour=country, label=country))+
+  geom_smooth(data = Ireland_Confirmed,
+              alpha = 0.6, span = 0.1,
+              se = FALSE, size = .8) +
+  geom_smooth(aes(group = country),
+              alpha = 0.05, span = 0.1,
+              se = FALSE, size = 0.2) +
+#  geom_jitter(alpha = 0.1, size = 0.2) +
+  ggrepel::geom_text_repel(data = Latest_date %>%
+                             filter(country %in% Context,
+                                    type == 'confirmed'),
+                           aes(x= date, y = rate, label = country)) +
+  scale_x_date(date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Rates (Cases per million per day)') +
+  ggtitle('Confirmed COVID19 Rates over time (smoothed)',
+          subtitle = 'Selected European countries') +
+  guides(fill=FALSE) +
+  guides(colour=FALSE) +
+  geom_label(aes(x = as_date(min(date) + Span*5/100),
+                 y = max(rate)/2),
+             colour = 'blue', fill = 'lightblue',
+             label='@isagcovid19') +
+  theme_light()
+
+ggContextRates
+
+ggsave('images/Ireland_case_rates_in_context.png', ggContextRates,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+
+ggContextRatesShort <- ggContextRates +
+  scale_x_date(limits = c(as_date('2020-09-01'), as_date('2021-01-15'))) +
+  geom_label(aes(x = as_date('2021-09-01') + Span*5/100,
+                 y = max(rate)/2),
+             colour = 'blue', fill = 'lightblue',
+             label='@isagcovid19') 
+
+ggContextRatesShort
+
+ggsave('images/Ireland_case_rates_short_in_context.png', ggContextRatesShort,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+
+```
+
+# Plots of death numbers
 
 ```{r Deaths}
 
 ggDeathsContext <- ggplot(JHU_Dead %>%
-         filter(country %in% Context, province == ''),
-       aes(x=date(date), y=deaths,
-           group=country, colour=country, label=country)) +
-  geom_smooth(data=Ireland_Dead,alpha=0.6,span=0.3,se=FALSE, size=.8) +
-  geom_smooth(aes(group=country), alpha=0.1, span=0.3, se=FALSE, size=.2) +
-  geom_jitter(alpha=0.1, size=0.2) +
-  ggrepel::geom_text_repel(data=Latest_date_Context_d,
-                        aes(y=deaths,label=country)) +
+                            filter(country %in% Context, province == ''),
+       aes(x=date(date), y=cases,
+           group=country, colour=country, label=country))+
+  geom_smooth(aes(group = country),
+              alpha = 0.05, span = 0.3,
+              se = FALSE, size = 0.2) +
+  geom_smooth(data = Ireland_Dead,
+              alpha = 0.6, span = 0.3,
+              se = FALSE, size = .8) +
+  ggrepel::geom_text_repel(data = Latest_date %>%
+                             filter(country %in% Context,
+                                    type == 'death'),
+                           aes(x= date, y = cases, label = country)) +
   scale_x_date(date_breaks = "1 month",
                date_labels = "%b",
                date_minor_breaks = "1 week") +
-  scale_y_log10() +
+  scale_y_log10(limits=c(1,1000)) +
   xlab('Date') + ylab('Deaths (log scale)') +
-  ggtitle('Confirmed COVID19 deaths over time') +
+  ggtitle('Confirmed COVID19 deaths over time',
+          subtitle = 'Selected European countries') +
   guides(fill=FALSE) +
   guides(colour=FALSE) +
   theme_light()
@@ -142,7 +220,40 @@ ggsave('images/Ireland_deaths_in_context.png', ggDeathsContext,
 ```
 
 
+# Plots of death rates
 
+```{r Deaths}
+
+ggDeathRateContext <- ggplot(JHU_Dead %>%
+                            filter(country %in% Context, province == ''),
+       aes(x=date(date), y=cases,
+           group=country, colour=country, label=country))+
+  geom_smooth(aes(group = country),
+              alpha = 0.5, span = 0.4,
+              se = FALSE, size = 0.2) +
+  geom_smooth(data = Ireland_Dead,
+              alpha = 0.6, span = 0.4,
+              se = FALSE, size = .8) +
+  ggrepel::geom_text_repel(data = Latest_date %>%
+                             filter(country %in% Context,
+                                    type == 'death'),
+                           aes(x= date, y = cases, label = country)) +
+  scale_x_date(date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10(limits=c(1,1000)) +
+  xlab('Date') + ylab('Death rates per 100k (log scale)') +
+  ggtitle('Confirmed COVID19 deaths, rate over time',
+          subtitle = 'Selected European countries') +
+  guides(fill=FALSE) +
+  guides(colour=FALSE) +
+  theme_light()
+
+ggDeathRateContext
+
+ggsave('images/Ireland_deaths_rate_in_context.png', ggDeathRateContext,
+       units = 'cm', dpi = 600, width = 21, height = 15)
+```
 
 
 
