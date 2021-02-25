@@ -235,13 +235,37 @@ ggTestsCases <- ggplot(Linked,aes(x=date(Date),y=TestsPos)) +
                date_labels = "%b",
                date_minor_breaks = "1 week") +
 #  scale_y_log10() +
-  xlab('Date') + ylab('Percentage tests positive') +
-  ggtitle('Positive tests %') +
+  xlab('Date') + ylab('Tests positive') +
+  ggtitle('Positive tests (N)') +
   theme_light()
 
 ggTestsCases
 
 ggsave('images/TestsCases.png', ggTestsCases,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+```{r}
+
+Linked <- Linked %>%
+  mutate(TestsPosPct = 100*TestsPos/TestsDone)
+
+ggTestsCasesPct <- ggplot(Linked,aes(x=date(Date),y=TestsPosPct)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(start_date, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Percentage tests positive') +
+  ggtitle('Positive tests (%)') +
+  theme_light()
+
+ggTestsCasesPct
+
+ggsave('images/TestsCasesPct.png', ggTestsCasesPct,
        device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
 ```
 

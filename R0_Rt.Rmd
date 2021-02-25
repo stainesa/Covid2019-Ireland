@@ -263,8 +263,8 @@ gD_Rt_shortCONF <- ggplot(D_Rt_shortCONF,
   xlab('Date of Estimate') + ylab('Estimated R0') +
   ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
-  scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,3.5)) +
+  scale_y_continuous(minor_breaks = c(seq(0,2, by=0.1),seq(seq(2,10,by=0.5)))) +
+  coord_cartesian(ylim=c(0,1.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +

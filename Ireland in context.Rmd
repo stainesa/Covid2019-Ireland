@@ -211,6 +211,10 @@ ggDeathsContext <- ggplot(JHU_Dead %>%
           subtitle = 'Selected European countries') +
   guides(fill=FALSE) +
   guides(colour=FALSE) +
+  geom_label(aes(x = as_date(min(date) + Span*5/100),
+                 y = max(rate)/2),
+             colour = 'blue', fill = 'lightblue',
+             label='@isagcovid19') +
   theme_light()
 
 ggDeathsContext
@@ -247,6 +251,10 @@ ggDeathRateContext <- ggplot(JHU_Dead %>%
           subtitle = 'Selected European countries') +
   guides(fill=FALSE) +
   guides(colour=FALSE) +
+  geom_label(aes(x = as_date(min(date) + Span*5/100),
+                 y = max(rate)/2),
+             colour = 'blue', fill = 'lightblue',
+             label='@isagcovid19') +
   theme_light()
 
 ggDeathRateContext

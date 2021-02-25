@@ -112,7 +112,53 @@ Irish_Profile <- Irish_Profile %>%
   mutate(ICU = RequiringICUCovidCases -
            lag(RequiringICUCovidCases, default = 0)) %>%
   mutate(ICU = ifelse(ICU < 0, 0, ICU))
+```
 
+Fix some errors
+
+```{r}
+# Fix an error
+
+Irish_Profile %>% filter(FID == 355) %>% select(FID,Date,Aged35to44)
+#34185
+Irish_Profile %>% filter(FID == 356) %>% select(FID,Date,Aged35to44)
+#32316
+Irish_Profile %>% filter(FID == 357) %>% select(FID,Date,Aged35to44)
+#34462
+
+# For 2020-02-18 Age 34+ falls by about 2000 from 34185 on 2020-02-17 to 32316. On 2020-02-19 it is 34462.
+#For a cumulative count this is impossible. Best guess is (34462 - 34185)/2 which is 138.5, so we set it to 34185 + 138. FID is 357
+
+Irish_Profile$Aged35to44[Irish_Profile$FID == 356]
+Irish_Profile$Aged35to44[Irish_Profile$FID == 356] = (34185 + 138)
+Irish_Profile$Aged35to44[Irish_Profile$FID == 356]
+
+Irish_Profile %>% filter(FID == 356) %>% select(FID,Date,Aged35to44)
+#34600
+```
+
+```{r}
+Irish_Profile %>% filter(FID == 125) %>% select(FID,Date,Aged65up)
+#6471
+Irish_Profile %>% filter(FID == 126) %>% select(FID,Date,Aged65up)
+#6371 # Cannot be right
+Irish_Profile %>% filter(FID == 127) %>% select(FID,Date,Aged65up)
+#6473
+Irish_Profile %>% filter(FID == 128) %>% select(FID,Date,Aged65up)
+#6471
+Irish_Profile %>% filter(FID == 129) %>% select(FID,Date,Aged65up)
+Irish_Profile %>% filter(FID == 130) %>% select(FID,Date,Aged65up)
+
+Irish_Profile$Aged65up[Irish_Profile$FID == 126]
+Irish_Profile$Aged65up[Irish_Profile$FID == 126] = 6471
+Irish_Profile$Aged65up[Irish_Profile$FID == 126]
+
+
+```
+
+Save the Irish_Profile
+
+```{r}
 saveRDS(Irish_Profile, file='data/Irish_Profile.rds')
 ```
 
