@@ -261,7 +261,7 @@ gD_Rt_shortCONF <- ggplot(D_Rt_shortCONF,
   geom_ribbon(colour='grey',alpha=0.3) +
   geom_point() +
   xlab('Date of Estimate') + ylab('Estimated R0') +
-  ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed cases')+
+  ggtitle('Rt - 7 day rolling estimate', subtitle = 'Confirmed cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.1),seq(seq(2,10,by=0.5)))) +
   coord_cartesian(ylim=c(0,1.5)) +
@@ -304,7 +304,7 @@ gD_Rt_shortEST <- ggplot(D_Rt_shortEST,
   geom_ribbon(colour='grey',alpha=0.3) +
   geom_point() +
   xlab('Date of Estimate') + ylab('Estimated R0') +
-  ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Estimated cases')+
+  ggtitle('Rt - 7 day rolling estimate', subtitle = 'Estimated cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
   coord_cartesian(ylim=c(0,3.3)) +
@@ -340,7 +340,7 @@ gD_Rt <- ggplot(D_Rt, aes(x=Date)) +
               span=0.25, alpha=0.4) +
   
   xlab('Date of Estimate') + ylab('Estimated R0') +
-  ggtitle('Risk of Infection - 7 day rolling estimate', subtitle = 'Confirmed and Estimated cases') +
+  ggtitle('Rt - 7 day rolling estimate', subtitle = 'Confirmed and Estimated cases') +
   scale_colour_manual(name='Cases',
                       values=c('pink' = 'pink', 'lightgreen' = 'lightgreen'),
                       labels = c('Estimated', 'Confirmed')) +

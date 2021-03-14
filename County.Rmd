@@ -14,7 +14,7 @@ To prepare graphs of coronavirus incidence at county level
 
 ```{r setup, include=FALSE}
 rm(list=ls())
-library(sf)
+#library(sf)
 library(RcppRoll)
 library(scales)
 library(lubridate)
@@ -26,18 +26,11 @@ knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 ```{r load data file}
 CountyCSV <- readRDS('data/CountyCSV.rds')
 
-```
-
-## Basic dates
-
-```{r}
-CountyCSV <- CountyCSV %>%
-  mutate(Date = as_date(TimeStamp)) %>%
-  filter(Date > as_date('2020-03-20')) # No data till 2020-03-21
-
-start_date = min(as_date(CountyCSV$Date))
-end_date = max(as_date(CountyCSV$Date))
+  start_date = min(CountyCSV$Date)
+  end_date = max(CountyCSV$Date) + days(14)
+  
   n_days <- interval(start_date,end_date)/days(1)
+
 Datespan <- as_tibble(start_date + days(0:n_days)) %>%
   rename(Date = value) # I row per date in the two datasources
 ```
@@ -46,6 +39,7 @@ County level data has cumulative cases, not cases per day, which is what we need
 
 ```{r}
 #Lags and cases
+
 CountyCSV <- CountyCSV %>%
   group_by(ORIGID) %>%
   mutate(Cases = ConfirmedCovidCases -
@@ -73,21 +67,16 @@ CountyCSV <- CountyCSV %>%
 
 write_csv(CountyCSV,'CountyCSV.csv')
 
-Kil <- CountyCSV %>%
-  filter(ORIGID == 9) # Kildare
-
-Dub <- CountyCSV %>%
-  filter(ORIGID == 6) # Dublin
 ```
 
 ## Load the boundaries
 
 ```{r}
-Counties <- st_read('County boundaries/Census2011_Admin_Counties_generalised20m.shp')
-Counties
-Counties$COUNTYNAME[20] <- 'Dún Laoghaire-Rathdown' # Fix typo
+#Counties <- st_read('County #boundaries/Census2011_Admin_Counties_generalised20m.shp')
+#Counties
+#Counties$COUNTYNAME[20] <- 'Dún Laoghaire-Rathdown' # Fix typo
 
-ggplot(data=Counties) + geom_sf() + ggtitle('Republic of Ireland')  + geom_sf_text(aes(label = COUNTYNAME))
+#ggplot(data=Counties) + geom_sf() + ggtitle('Republic of Ireland')  + #geom_sf_text(aes(label = COUNTYNAME))
 ```
 
 ## Load the geography matching file
@@ -97,8 +86,9 @@ Match_Geographies <- openxlsx::read.xlsx(
   'County boundaries/Merge_Geographies.xlsx')
 
 CountyCSV <- CountyCSV %>%
-  inner_join(Match_Geographies %>% select(Data,Abbreviation) %>% distinct(),
-             by=c('CountyName' = 'Data' ))
+  inner_join(Match_Geographies %>%
+               select(Data,Abbreviation) %>%
+               distinct(), by=c('CountyName' = 'Data' ))
 ```
 
 
@@ -108,19 +98,35 @@ Order by date and total rate
 Display count
 
 ```{r, fig.width=8, fig.height=20}
-#CountyOrder <- CountyCSV %>% group_by(Abbreviation) %>% summarise(MAX = max(ConfirmedCovidCases)) %>% arrange(desc(MAX))
 CountyOrder <- CountyCSV %>%
+  filter(Date >= end_date - days(54)) %>%
   group_by(Abbreviation) %>%
   summarise(MAX = max(MeanRate14)) %>%
   arrange(desc(MAX))
 
-ORDER <- as.character(CountyOrder$Abbreviation)
+ORDER.A <- as.character(CountyOrder$Abbreviation)
+
+CountyOrder <- CountyCSV %>%
+  filter(Date >= end_date - days(54)) %>%
+  group_by(CountyName) %>%
+  summarise(across(MeanRate14, list(MIN = min, MAX = max))) %>%
+  mutate(MeanRate14_FALL = MeanRate14_MAX - MeanRate14_MIN) %>%
+  arrange(desc(MeanRate14_FALL))
+
+ORDER.B <- as.character(CountyOrder$CountyName)
 
 CountyCSV <- CountyCSV %>%
   mutate(AbbreviationF = as_factor(Abbreviation)) %>%
-  mutate(AbbreviationF =  fct_relevel(AbbreviationF,ORDER))
+  mutate(AbbreviationF =  fct_relevel(AbbreviationF,ORDER.A)) %>%
+  mutate(CountyF = as_factor(CountyName)) %>%
+  mutate(CountyF =  fct_relevel(CountyF,ORDER.B))
 
-ggplot(data=CountyCSV,
+```
+
+
+```{r}
+
+ggHeatMap <- ggplot(data=CountyCSV,
        aes(x=AbbreviationF,y=Date)) +
   geom_tile(aes(colour = MeanRate14,
                 fill = MeanRate14),height=1,width=1) +
@@ -141,5 +147,43 @@ ggplot(data=CountyCSV,
        x = 'County',  y = 'Date',
        colour='Rate', fill='Rate') +
   theme_light()
+
+ggHeatMap
+
+ggsave(filename = 'images/CountyHeatMap.png', ggHeatMap, units='cm', width=10, height=14)
+
+```
+
+
+```{r, fig.width=8, fig.height=20}
+
+ggGrid <- ggplot(data=CountyCSV %>%
+           filter(Date >= end_date - days(54)),
+       aes(y=MeanRate14,x=Date,
+           group=CountyF,
+           colour = CountyF)) +
+  geom_line() + geom_point() +
+#  scale_y_log10(limits=c(0.9,60)) +
+  scale_y_continuous(limits=c(0,60)) +
+  scale_x_date(limits=c(end_date - days(54), end_date - days(10)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  theme(axis.text.x.top = element_text(angle = 270, face='bold',
+                                       vjust = 0.5, hjust=1,
+                                       size=20)) +
+  labs(title =  'Mean 14 day case rate per 100,000 by county',
+       x = 'County',  y = '14 day rate',
+       colour='Rate', fill='Rate') +
+  theme_light() +
+  scale_colour_discrete(guide = FALSE) +
+#  theme(strip.background =element_rect(fill="red"))+
+  theme(strip.text = element_text(colour = "darkblue")) +
+  facet_wrap(~CountyF)
+
+
+ggGrid
+
+ggsave(filename = 'images/CountyrecentGrid.png', ggGrid, units='cm', width=12, height=12)
 
 ```

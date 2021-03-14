@@ -166,8 +166,12 @@ saveRDS(Irish_Profile, file='data/Irish_Profile.rds')
 
 ```{r}
 CountyCSV <- read_csv('http://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv?outSR={%22latestWkid%22:3857,%22wkid%22:102100}')
-rm(CountyCSV)
-CountyCSV <- read_csv('https://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv')
+CountyCSV2 <- read_csv('https://opendata-geohive.hub.arcgis.com/datasets/d9be85b30d7748b5b7c09450b8aede63_0.csv')
+rm(CountyCSV2)
+
+CountyCSV <- CountyCSV %>%
+  mutate(Date = as_date(TimeStamp)) %>%
+  filter(Date > as_date('2020-03-20')) # No data till 2020-03-21
 
 saveRDS(CountyCSV, file='data/CountyCSV.rds')
 ```

@@ -35,8 +35,8 @@ Irish_Profile <- readRDS('data/Irish_Profile.rds')
 Irish_Profile <- Irish_Profile %>%
     mutate(Un_known = c(NA, diff(Unknown))) %>%
   mutate(Un_known.D7 = roll_mean(Un_known, n=7, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
-  mutate(Age.1_4 = c(NA, diff(Aged1to4))) %>%
-  mutate(Age.D7.1_4 = roll_mean(Age.1_4, n=7, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Age.0_4 = c(NA, diff(Aged1to4))) %>%
+  mutate(Age.D7.0_4 = roll_mean(Age.0_4, n=7, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
   mutate(Age.5_14 = c(NA, diff(Aged5to14))) %>%
   mutate(Age.D7.5_14 = roll_mean(Age.5_14, n=7, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
   mutate(Age.15_24 = c(NA, diff(Aged15to24))) %>%
@@ -52,6 +52,7 @@ Irish_Profile <- Irish_Profile %>%
   mutate(Age.65plus = c(NA, diff(Aged65up))) %>%
   mutate(Age.D7.65plus = roll_mean(Age.65plus, n=7, align='right', fill=0, normalize=TRUE, na.rm=TRUE))
   
+names(Irish_Profile)
 ```
 
 CSO 2020 population estimates PEA11
@@ -60,6 +61,21 @@ CSO 2020 population estimates PEA11
 
 Pop <- readxl::read_excel('data/PEA11.xlsx', sheet='Data')
 
+Pop <- Pop %>%
+  filter(Gender == 'B') %>%
+  mutate(AgeGroup = recode(Age_group,
+                           '0_4' = '0_4',
+                           '5_14' = '5_14',
+                           '15_24' = '15_24',
+                           '25_34' = '25_34',
+                           '35_44' = '45_44',
+                           '45_54' = '45_54',
+                           '55_64' = '55_64',
+                           '65_+' = '65plus')) %>%
+  mutate(AgeGroup = as_factor(AgeGroup)) %>%
+  mutate(AgeGroup = fct_inorder(AgeGroup)) %>%
+  select(AgeGroup, Mean_Age, Population)
+Pop
 
 ```
 
@@ -112,25 +128,26 @@ ggsave('images/COVID19Gender.png', ggGender,
 
 ```{r}
 Age <- Irish_Profile %>%
-  select(Date,FID, Age.1_4:Age.D7.65plus)  %>%
+  select(Date,FID, Age.0_4:Age.D7.65plus)  %>%
     pivot_longer(-c(Date,FID),
                  names_to=c('AgeType','AgeGroup'),
                  names_pattern = '(Age\\.D7\\.|Age\\.)(.*)',
                  values_to = 'Cases') %>%
-  filter(!is.na(Cases))
-
-#%>%
-  mutate(Age = fct_inorder(Age)) %>%
+  filter(!is.na(Cases)) %>%
+  filter(!is.nan(Cases)) %>%
   mutate(Cases = pmax(Cases,0)) %>%
-  group_by(Cases)
+  mutate(AgeGroup = as_factor(AgeGroup)) %>%
+  mutate(AgeGroup = fct_inorder(AgeGroup)) %>%
+  mutate(Cases = pmax(Cases,0))
 
+str(Age)
 ```
 
 ## Recent cases
 
 ```{r}
 ggAgeMapRecent <- ggplot(Age,
-       aes(x=date(Date), y=Age,
+       aes(x=date(Date), y=AgeGroup,
            colour=Cases, fill=Cases)) +
   geom_tile() +
   scale_fill_distiller(palette='OrRd', direction=1,
@@ -144,7 +161,8 @@ ggAgeMapRecent <- ggplot(Age,
                date_minor_breaks = "1 week") +
   xlab('Date') + ylab('Age group') +
   ggtitle('Confirmed COVID19 cases by age',subtitle='Recent cases only') +
-  theme_light()
+  theme_light() +
+  facet_wrap(~AgeType)
 
 ggAgeMapRecent
 
@@ -156,7 +174,7 @@ ggsave('images/COVID19AgeMapRecent.png', ggAgeMapRecent,
 
 ```{r}
 ggAgeMap <- ggplot(Age,
-       aes(x=date(Date), y=Age,
+       aes(x=date(Date), y=AgeGroup,
            colour=Cases, fill=Cases)) +
   geom_tile() +
   scale_fill_distiller(palette='OrRd', direction=1,
@@ -170,7 +188,8 @@ ggAgeMap <- ggplot(Age,
                date_minor_breaks = "1 week") +
   xlab('Date') + ylab('Age group') +
   ggtitle('Confirmed COVID19 cases by age',subtitle='All cases') +
-  theme_light()
+  theme_light() +
+  facet_wrap(~AgeType)
 
 ggAgeMap
 
@@ -181,14 +200,14 @@ ggsave('images/COVID19AgeMap.png', ggAgeMap,
 Plot by age and time
 
 ```{r}
-ggAgeLine <- ggplot(Age %>% filter(Age != 'Unknown'),
-       aes(x=date(Date), y=Cases7d, group = Age,
-           colour=Age, fill=Age, alpha = pmin(1,Cases/100))) +
+ggAgeLine <- ggplot(Age %>% filter(AgeType == 'Age.D7.'),
+       aes(x=date(Date), y=Cases, group = AgeGroup,
+           colour=AgeGroup, fill=AgeGroup)) +
   geom_line() +
 #  geom_smooth(span=0.1) +
-  scale_y_log10() +
-#  scale_fill_distiller(palette='OrRd', direction=1,
-#                       na.value='white') +
+  scale_y_log10(limits=c(1,1350)) +
+  scale_colour_brewer(palette='Dark2', direction=1,
+                         na.value='white') +
 #  scale_colour_distiller(palette='OrRd', direction=1,
 #                         na.value='white') +
   scale_x_date(limits=c(start_date + days(21),
@@ -200,6 +219,7 @@ ggAgeLine <- ggplot(Age %>% filter(Age != 'Unknown'),
   ggtitle('Confirmed COVID19 cases by age',subtitle='All cases') +
   theme_light()
 
+
 ggAgeLine
 
 ggsave('images/COVID19AgeLine.png', ggAgeLine,
@@ -207,7 +227,69 @@ ggsave('images/COVID19AgeLine.png', ggAgeLine,
 
 ```
 
-Rates
+```{r}
+ggAgeLineRecent <- ggplot(Age %>% filter(AgeType == 'Age.D7.'),
+       aes(x=date(Date), y=Cases, group = AgeGroup,
+           colour=AgeGroup, fill=AgeGroup)) +
+  geom_line() + geom_point(alpha=0.5) +
+#  geom_smooth(span=0.1) +
+  scale_y_log10(limits=c(5,1350)) +
+#  scale_fill_distiller(palette='OrRd', direction=1,
+#                       na.value='white') +
+  scale_colour_brewer(palette='Dark2', direction=1,
+                         na.value='white') +
+#  scale_colour_viridis_d(begin='red',end='nlue', direction=1,
+ #                        na.value='white') +
+  scale_x_date(limits=c(start_date + days(275),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  xlab('Date') + ylab('Cases') +
+  ggtitle('Confirmed COVID19 cases by age',subtitle='All cases') +
+  theme_light()
+
+ggAgeLineRecent
+
+ggsave('images/COVID19AgeRecentLine.png', ggAgeLine,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+
+```
+
+Rates per 100,000
 
 ```{r}
+Age <- Age %>%
+  inner_join(Pop,by = "AgeGroup") %>%
+  mutate(Rate = 100000*Cases/Population)
+```
+
+
+```{r}
+ggAgeLineRecentRate <- ggplot(Age %>% filter(AgeType == 'Age.D7.'),
+       aes(x=date(Date), y=Rate, group = AgeGroup,
+           colour=AgeGroup, fill=AgeGroup)) +
+  geom_line() + geom_point(alpha=0.5) +
+#  geom_smooth(span=0.1) +
+  scale_y_log10(limits=c(1,250)) +
+#  scale_fill_distiller(palette='OrRd', direction=1,
+#                       na.value='white') +
+  scale_colour_brewer(palette='Dark2', direction=1,
+                         na.value='white') +
+#  scale_colour_viridis_d(begin='red',end='nlue', direction=1,
+ #                        na.value='white') +
+  scale_x_date(limits=c(start_date + days(315),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  xlab('Date') + ylab('Rate per 100,000') +
+  ggtitle('Confirmed COVID19 case rates by age',subtitle='All cases') +
+  theme_light()
+
+ggAgeLineRecentRate
+
+ggsave('images/COVID19AgeRecentLineRate.png', ggAgeLineRecentRate,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+
 ```
