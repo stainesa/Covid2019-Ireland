@@ -15,6 +15,7 @@ editor_options:
 
 This file is run once a day to download the latest coronavirus data. The Irish data, manually collected each evening from the DoH website (https://www.gov.ie/en/news/7e0924-latest-updates-on-covid-19-coronavirus/) are downloaded separately, and used to correct the JHU data.
 
+
 ```{r setup, include=FALSE}
 rm(list=ls())
 library(devtools)

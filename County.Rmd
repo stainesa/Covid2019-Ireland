@@ -59,13 +59,15 @@ CountyCSV <- CountyCSV %>%
 #Rates
 CountyCSV <- CountyCSV %>%
   group_by(ORIGID) %>%
-  mutate(Rate = 100000*Cases/PopulationCensus16) %>%
+  mutate(Rate = 100000*Cases/PopulationCensus16) %>% # Daily rate
+  mutate(SumRate7 = 100000*CasesSum7/PopulationCensus16) %>%
+  mutate(SumRate14 = 100000*CasesSum14/PopulationCensus16) %>%
   mutate(MeanRate7 = 100000*CasesMean7/PopulationCensus16) %>%
   mutate(MeanRate14 = 100000*CasesMean14/PopulationCensus16) %>%
-  mutate(MedianRate7 = 100000*CasesMean7/PopulationCensus16) %>%
+  mutate(MedianRate7 = 100000*CasesMedian7/PopulationCensus16) %>%
   mutate(MedianRate14 = 100000*CasesMedian14/PopulationCensus16)
 
-write_csv(CountyCSV,'CountyCSV.csv')
+write_csv(CountyCSV,'data/CountyCSV.csv')
 
 ```
 
@@ -104,7 +106,7 @@ CountyOrder <- CountyCSV %>%
   summarise(MAX = max(MeanRate14)) %>%
   arrange(desc(MAX))
 
-ORDER.A <- as.character(CountyOrder$Abbreviation)
+ORDER.A <- as.character(CountyOrder$Abbreviation) # Order by maximum rate
 
 CountyOrder <- CountyCSV %>%
   filter(Date >= end_date - days(54)) %>%
@@ -113,13 +115,24 @@ CountyOrder <- CountyCSV %>%
   mutate(MeanRate14_FALL = MeanRate14_MAX - MeanRate14_MIN) %>%
   arrange(desc(MeanRate14_FALL))
 
-ORDER.B <- as.character(CountyOrder$CountyName)
+ORDER.B <- as.character(CountyOrder$CountyName) # Order by maximum fall in rate
+
+CountyOrder <- CountyCSV %>%
+  filter(Date >= end_date - days(54)) %>%
+  group_by(CountyName) %>%
+  summarise(across(SumRate14, list(MEAN = mean))) %>%
+  arrange(desc(SumRate14_MEAN))
+
+ORDER.C <- as.character(CountyOrder$CountyName) # Order by maximum fall in rate
+
 
 CountyCSV <- CountyCSV %>%
   mutate(AbbreviationF = as_factor(Abbreviation)) %>%
   mutate(AbbreviationF =  fct_relevel(AbbreviationF,ORDER.A)) %>%
   mutate(CountyF = as_factor(CountyName)) %>%
-  mutate(CountyF =  fct_relevel(CountyF,ORDER.B))
+  mutate(CountyF =  fct_relevel(CountyF,ORDER.B)) %>%
+  mutate(CountyF.C = as_factor(CountyName)) %>%
+  mutate(CountyF.C =  fct_relevel(CountyF.C,ORDER.C))
 
 ```
 
@@ -128,8 +141,8 @@ CountyCSV <- CountyCSV %>%
 
 ggHeatMap <- ggplot(data=CountyCSV,
        aes(x=AbbreviationF,y=Date)) +
-  geom_tile(aes(colour = MeanRate14,
-                fill = MeanRate14),height=1,width=1) +
+  geom_tile(aes(colour = SumRate14,
+                fill = SumRate14),height=1,width=1) +
   scale_x_discrete(position = "top") +
   scale_colour_distiller(palette='OrRd', direction=1,
                          na.value='white') +
@@ -159,12 +172,12 @@ ggsave(filename = 'images/CountyHeatMap.png', ggHeatMap, units='cm', width=10, h
 
 ggGrid <- ggplot(data=CountyCSV %>%
            filter(Date >= end_date - days(54)),
-       aes(y=MeanRate14,x=Date,
-           group=CountyF,
-           colour = CountyF)) +
+       aes(y=SumRate14,x=Date,
+           group=CountyF.C,
+           colour = CountyF.C)) +
   geom_line() + geom_point() +
 #  scale_y_log10(limits=c(0.9,60)) +
-  scale_y_continuous(limits=c(0,60)) +
+  scale_y_continuous(limits=c(0,600)) +
   scale_x_date(limits=c(end_date - days(54), end_date - days(10)),
                date_breaks = "1 month",
                date_labels = "%b",
@@ -172,14 +185,14 @@ ggGrid <- ggplot(data=CountyCSV %>%
   theme(axis.text.x.top = element_text(angle = 270, face='bold',
                                        vjust = 0.5, hjust=1,
                                        size=20)) +
-  labs(title =  'Mean 14 day case rate per 100,000 by county',
+  labs(title =  '14 day case rate per 100,000 by county',
        x = 'County',  y = '14 day rate',
        colour='Rate', fill='Rate') +
   theme_light() +
   scale_colour_discrete(guide = FALSE) +
 #  theme(strip.background =element_rect(fill="red"))+
   theme(strip.text = element_text(colour = "darkblue")) +
-  facet_wrap(~CountyF)
+  facet_wrap(~CountyF.C)
 
 
 ggGrid

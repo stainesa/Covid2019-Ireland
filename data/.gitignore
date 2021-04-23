@@ -1,13 +1,8 @@
-temp.csv
-CC.Rdata
-Lab_RecordsCSV.rds
-Lab_RecordsCSV.csv
-Population.rds
-Hospital_SummaryCSV.rds
-Irish_Current.rds
-Irish_Profile.rds
-JHU_C.rds
-Lab_Records.rds
-Linked.rds
-OWID.rds
+# R binary data files
+*.rds
+# Spreadsheet files
+*.xls
+*.xlsx
+*.ods
 CountyCSV.rds
+Lab_RecordsCSV.csv
