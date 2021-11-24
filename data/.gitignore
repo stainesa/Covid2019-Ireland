@@ -1,6 +1,0 @@
-# R binary data files
-*.rds
-# Spreadsheet files
-*.xls
-*.xlsx
-*.ods
