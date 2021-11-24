@@ -73,8 +73,99 @@ https://covid-19.geohive.ie/datasets/d8eb52d56273413b84b0187a4e9117be
 Two datasets mashed together. One up to date, the other two days behind
 
 ```{r Ireland}
-Irish_Open_data <- read_csv('https://opendata.arcgis.com/datasets/d8eb52d56273413b84b0187a4e9117be_0.csv')
+Irish_Open_data <- read_csv('https://opendata.arcgis.com/datasets/d8eb52d56273413b84b0187a4e9117be_0.csv') %>%
+  mutate(DateD = as_date(Date)) %>% # Up to date
+  mutate(StatisticsProfileDateD = as_date(StatisticsProfileDate)) # Two days behind
+  
+glimpse(Irish_Open_data)
 ```
+
+## Fix deaths
+
+```{r FixDeaths function}
+
+FixDeaths <- function(DateStart,DateEnd,Dead,DF) {
+  cat('DateStart - ', DateStart,'\n',
+      'DateEnd - ', DateEnd,'\n',
+      'Dead - ', Dead,'\n')
+  DateRange <- as_date((as_date(DateStart) : as_date(DateEnd)))
+  lamda = Dead/length(DateRange)
+    SUM = 0
+  while(SUM != Dead){
+    Deaths <- rpois(length(DateRange),lamda)
+    SUM = sum(Deaths)
+    #cat(SUM,'\n')
+  }
+
+    FIX <- tibble(DateD = DateRange,
+                  ConfirmedCovidDeaths = Deaths)
+    
+    DF <- DF %>%
+      rows_update(FIX, by=c("DateD")) %>%
+      arrange(DateD)
+
+    return(DF)
+}
+
+```
+
+There were zero reported deaths each day from 2021-05-15 to 2012-06-16. On 2021-06-17 38 deaths were recorded. Thereafter deaths were reported each week. We assume that these 38 deaths came randomly over those days.
+
+```{r fix deaths - first batch ?Ransomware hole '2021-05-15' to '2021-06-17'}
+TEST <- FixDeaths(DateStart = '2021-05-15', DateEnd = '2021-06-17',
+                  Dead = 38, DF = Irish_Open_data)
+sum(TEST$ConfirmedCovidDeaths,na.rm=TRUE)
+```
+
+On 2021-06-23 there were 10 deaths reported with missing values for the previous 5 days (6 day interval), and on 2021-07-01 there were 2 deaths reported with 9 the previous day, and six missing values preceding those. We take those 2 as being reported that day, and the six deaths reported on 2021-06-30 as relating to that day and the previous six days back to 2021-06-24. Thereafter (so far) deaths are reported weekly.
+
+```{r assign deaths second batch '2021-06-18' to '2021-06-23'}
+TEST <- FixDeaths(DateStart = '2021-06-18', DateEnd = '2021-06-23',
+                  Dead = 10, DF = TEST)
+sum(TEST$ConfirmedCovidDeaths,na.rm=TRUE)
+```
+
+```{r assign deaths third batch '2021-06-24' to '2021-06-30'}
+TEST <- FixDeaths(DateStart = '2021-06-24', DateEnd = '2021-06-30',
+                  Dead = 9, DF = TEST)
+sum(TEST$ConfirmedCovidDeaths,na.rm=TRUE)
+
+```
+
+```{r assign deaths fourth batch '2021-07-02' to '2021-07-07'}
+TEST <- FixDeaths(DateStart = '2021-07-02', DateEnd = '2021-07-07',
+                  Dead = 6, DF = TEST)
+sum(TEST$ConfirmedCovidDeaths,na.rm=TRUE)
+
+```
+
+Thereafter (so far) deaths are reported weekly.
+
+```{r}
+TEST_subset <- TEST %>%
+  select(DateD,ConfirmedCovidDeaths) %>%
+  filter(DateD > as_date('2021-07-07')) %>%
+  filter(!is.na(ConfirmedCovidDeaths)) %>%
+  mutate(DIFF = DateD - as_date('2021-07-07')) %>%
+  mutate(DateEnd = DateD) %>%
+  mutate(DateStart = DateEnd - 6)
+glimpse(TEST_subset)
+
+for (i in seq(1:length(TEST_subset$DateD))){
+     cat(i,'\n')
+TEST <- FixDeaths(DateStart = TEST_subset$DateStart[i],
+            DateEnd = TEST_subset$DateEnd[i],
+            Dead = TEST_subset$ConfirmedCovidDeaths[i],
+            DF=TEST)
+}
+
+warnings()
+sum(TEST$ConfirmedCovidDeaths,na.rm=TRUE)
+
+Irish_Open_data <- TEST
+
+```
+
 
 ## Irish current data
 
@@ -97,13 +188,12 @@ saveRDS(Irish_Current, file='data/Irish_Current.rds')
 ## Irish Profile data
 
 ```{r}
-Irish_Profile <- Irish_Open_data %>% dplyr::select(StatisticsProfileDate:FID) %>%
+Irish_Profile <- Irish_Open_data %>% dplyr::select(StatisticsProfileDate:Aged85up) %>%
   mutate(province = NA_character_, country='Ireland') %>%
   rename(date = StatisticsProfileDate) %>%
   mutate(Date = as_date(date)) %>%
   select(-date) %>%
-  select(Date,CovidCasesConfirmed:country)
-
+  select(Date,CovidCasesConfirmed:Aged85up)
 
 Irish_Profile <- Irish_Profile %>%
   mutate(Admissions = HospitalisedCovidCases -
@@ -116,47 +206,6 @@ Irish_Profile <- Irish_Profile %>%
   mutate(ICU = ifelse(ICU < 0, 0, ICU))
 ```
 
-Fix some errors
-
-```{r}
-# Fix an error
-
-Irish_Profile %>% filter(FID == 355) %>% select(FID,Date,Aged35to44)
-#34185
-Irish_Profile %>% filter(FID == 356) %>% select(FID,Date,Aged35to44)
-#32316
-Irish_Profile %>% filter(FID == 357) %>% select(FID,Date,Aged35to44)
-#34462
-
-# For 2020-02-18 Age 34+ falls by about 2000 from 34185 on 2020-02-17 to 32316. On 2020-02-19 it is 34462.
-#For a cumulative count this is impossible. Best guess is (34462 - 34185)/2 which is 138.5, so we set it to 34185 + 138. FID is 357
-
-Irish_Profile$Aged35to44[Irish_Profile$FID == 356]
-Irish_Profile$Aged35to44[Irish_Profile$FID == 356] = (34185 + 138)
-Irish_Profile$Aged35to44[Irish_Profile$FID == 356]
-
-Irish_Profile %>% filter(FID == 356) %>% select(FID,Date,Aged35to44)
-#34600
-```
-
-```{r}
-Irish_Profile %>% filter(FID == 125) %>% select(FID,Date,Aged65up)
-#6471
-Irish_Profile %>% filter(FID == 126) %>% select(FID,Date,Aged65up)
-#6371 # Cannot be right
-Irish_Profile %>% filter(FID == 127) %>% select(FID,Date,Aged65up)
-#6473
-Irish_Profile %>% filter(FID == 128) %>% select(FID,Date,Aged65up)
-#6471
-Irish_Profile %>% filter(FID == 129) %>% select(FID,Date,Aged65up)
-Irish_Profile %>% filter(FID == 130) %>% select(FID,Date,Aged65up)
-
-Irish_Profile$Aged65up[Irish_Profile$FID == 126]
-Irish_Profile$Aged65up[Irish_Profile$FID == 126] = 6471
-Irish_Profile$Aged65up[Irish_Profile$FID == 126]
-
-
-```
 
 Save the Irish_Profile
 
@@ -174,6 +223,7 @@ rm(CountyCSV2)
 CountyCSV <- CountyCSV %>%
   mutate(Date = as_date(TimeStamp)) %>%
   filter(Date > as_date('2020-03-20')) # No data till 2020-03-21
+
 
 saveRDS(CountyCSV, file='data/CountyCSV.rds')
 ```
@@ -216,6 +266,7 @@ saveRDS(Lab_Records, file='data/Lab_Records.rds')
   start_date = min(coronavirus$date)
   end_date = max(as_date(Irish_Current$Date))
   n_days <- lubridate::interval(start_date,end_date)/days(1)
+  
 Datespan <- as_tibble(start_date + days(0:n_days)) %>%
   rename(date = value) # I row per date in the two datasources
 
@@ -237,8 +288,8 @@ Ireland_corrected <- Irish_Current %>%
   arrange(date) %>% # Fill in country, lat, long etc..
   pivot_longer(-c(date, province, country, lat, long),
                values_to = 'cases',
-               names_to = 'type')
-
+               names_to = 'type') %>%
+mutate(uid = NA*cases, iso2 = NA*cases, iso3 = NA*cases, code3 = NA*cases, combined_key = NA*cases, population = NA*cases, continent_name = NA*cases, continent_code = NA*cases)
 table(Ireland_corrected$province, Ireland_corrected$country, useNA = 'ifany')
 
 
@@ -270,11 +321,36 @@ saveRDS(JHU_C, file='data/JHU_C.rds')
 
 ## OWID data
 
-```{r}
-OWID <- read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv", guess_max=10000)
+```{r,eval=FALSE}
+OWID <- read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv", guess_max=100000)
   str(OWID)
   
 Population <- OWID %>% select(iso_code,location,population) %>% distinct()
   saveRDS(OWID, file='data/OWID.rds')
   saveRDS(Population, file='data/Population.rds')
+```
+
+
+# Manual update of Irish Data
+
+```{r,eval=FALSE}
+X <- Irish_Current$X[1]
+Y <- Irish_Current$Y[1]
+
+start_Date <- max(Irish_Current$Date) + 1 
+end_Date <- Sys.Date()
+Span <- days(end_Date - start_Date)@day
+Date <- seq(start_Date, end_Date, 1)
+ConfirmedCovidCases <- c(447,355,360,358,503,469,
+                         524,381,438,345,365,448,
+                         436,467,464,374,378,337,
+                         407,465,529,416,313,377)
+
+
+TotalConfirmedCovidCases <- ConfirmedCovidDeaths <- TotalCovidDeaths <- FID <- 0  
+Rows = tibble(X,Y,Date,ConfirmedCovidCases,TotalConfirmedCovidCases,ConfirmedCovidDeaths,TotalCovidDeaths,FID)
+
+Irish_Current <- Irish_Current %>% rbind(Rows)
+
+saveRDS(Irish_Current, file='data/Irish_Current.rds')
 ```

@@ -33,13 +33,22 @@ Irish_Current <- readRDS('data/Irish_Current.rds')
 Linked <-  readRDS('data/Linked.rds')
 ```
 
-# R0 
-
-```{r Ireland}
+# Dates
+```{r}
 LastDate = max(Irish_Current$Date)
 FirstDate = min(Irish_Current$Date)
 Duration = LastDate - FirstDate
 Duration
+
+Start_Graph_Date = LastDate - 60 # 60 days back from present
+
+Irish_Current_Short <- Irish_Current %>%
+  filter (Date > Start_Graph_Date)
+
+```
+# R0 
+
+```{r Ireland}
 
 res_parametric_si1 <- estimate_R(Irish_Current$ConfirmedCovidCases, method="parametric_si",
            config = make_config(list(mean_si = 5,
@@ -75,7 +84,7 @@ gRt <- ggplot(Rt,
   geom_ribbon(colour='grey',alpha=0.3) +
   geom_point() +
   xlab('Date of Estimate') + ylab('Estimated R0') +
-  ggtitle('Risk of Infection - 7 day rolling estimate')+
+  ggtitle('Risk of Infection - 7 day rolling estimate') +
   scale_x_date(date_breaks = "2 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,1, by=0.2),seq(seq(1,10,by=0.5)))) +
   coord_cartesian(ylim=c(0,6)) +
@@ -93,8 +102,7 @@ ggsave('images/R0_Weekly_Time_varying.png', gRt,
 # Short term R
 
 ```{r short}
-Irish_Current_Short <- Irish_Current %>%
-  filter (Date > LastDate-45)
+
 res_uncertain_si_short <- estimate_R(Irish_Current_Short$ConfirmedCovidCases,
                                method="uncertain_si",
            config = make_config(list(mean_si = 6, std_mean_si = 3,
@@ -121,10 +129,10 @@ gRt_short <- ggplot(Rt_short,
   geom_ribbon(colour='grey',alpha=0.3) +
   geom_point() +
   xlab('Date of Estimate') + ylab('Estimated R0') +
-  ggtitle('Risk of Infection - 7 day rolling estimate')+
+  ggtitle('Risk of Infection', subtitle = '7 day rolling estimate')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,3.5)) +
+  coord_cartesian(ylim=c(0,2)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -136,7 +144,7 @@ ggsave('images/R0_Weekly_Time_varying_short.png', gRt_short,
        units = 'cm', dpi = 600, width = 21, height = 15)
 ```
 
-```{r}
+```{r, eval=FALSE}
 Irish_Current$Pct = Irish_Current$ConfirmedCovidCases/lag(Irish_Current$ConfirmedCovidCases,1)
 Irish_Current$Pct_Median = RcppRoll::roll_mean(Irish_Current$Pct,n=7,fill=c(0))
 Prediction <- as_tibble( seq(LastDate,LastDate+16,by=1))
@@ -149,7 +157,7 @@ Assume 8% of cases are repeats etc.
 Assume issues started 22/12/20 and distribute the extra positive tests smoothly over the subsequent days using a 3 day running median.
 
 
-```{r}
+```{r, eval=FALSE}
 ValidTestPos = 1 - 0.08 # 8% of cases reported are not real.
 
 Linked <- Linked %>%
@@ -171,7 +179,7 @@ sum(Linked$CaseEst)/ sum(Linked$TestsPos)
   ggplot(Linked,aes(x=ConfirmedCovidCases,y=CaseEst)) +geom_point()
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 ggDiffCases <- ggplot(Linked,
                       aes(x=date(Date))) +
@@ -203,9 +211,9 @@ ggsave('images/Diff.png', ggDiff,
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 Linked_Short <- Linked %>%
-  filter (Date > LastDate-45)
+  filter (Date > Start_Graph_Date)
 
 ggCaseEst <- ggplot(Linked_Short,
                     aes(x=date(Date),y=CaseEst)) +
@@ -234,7 +242,7 @@ ggsave('images/COVID19CasesEst.png', ggCaseEst,
        device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
 ```
 
-```{r CONF}
+```{r CONF, eval=FALSE}
 D_res_uncertain_si_shortCONF <- estimate_R(Linked_Short$ConfirmedCovidCases,
                                method="uncertain_si",
            config = make_config(list(mean_si = 6, std_mean_si = 3,
@@ -252,7 +260,7 @@ names(D_Rt_shortCONF) <- c("t_start", "t_end", "Mean", "Std", "Quantile.0.025", 
 
 ```
 
-```{r time varying CONF}
+```{r time varying CONF, eval=FALSE}
 
 gD_Rt_shortCONF <- ggplot(D_Rt_shortCONF,
        aes(x=Date, ymin=Quantile.0.025, y=Median, ymax=Quantile.0.975)) +
@@ -276,7 +284,7 @@ ggsave('images/R0_Weekly_Time_varying_short_CONFIRMED_cases.png', gD_Rt_shortCON
        units = 'cm', dpi = 600, width = 21, height = 15)
 ```
 
-```{r EST}
+```{r EST, eval=FALSE}
 D_res_uncertain_si_shortEST <- estimate_R(Linked_Short$CaseEst,
                                method="uncertain_si",
            config = make_config(list(mean_si = 6, std_mean_si = 3,
@@ -295,7 +303,7 @@ names(D_Rt_shortEST) <- c("t_start", "t_end", "Mean", "Std", "Quantile.0.025", "
 
 ```
 
-```{r time varying EST}
+```{r time varying EST, eval=FALSE}
 
 gD_Rt_shortEST <- ggplot(D_Rt_shortEST,
        aes(x=Date, ymin=Quantile.0.025, y=Median, ymax=Quantile.0.975)) +
@@ -307,7 +315,7 @@ gD_Rt_shortEST <- ggplot(D_Rt_shortEST,
   ggtitle('Rt - 7 day rolling estimate', subtitle = 'Estimated cases')+
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,3.3)) +
+  coord_cartesian(ylim=c(0,1.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10)) +
@@ -319,7 +327,7 @@ ggsave('images/R0_Weekly_Time_varying_short_ESTIMATED_cases.png', gD_Rt_shortEST
        units = 'cm', dpi = 600, width = 21, height = 15)
 ```
 
-```{r}
+```{r, eval=FALSE}
 D_Rt <- D_Rt_shortCONF %>%
   inner_join(D_Rt_shortEST, by='Date', suffix=c('.CONF','.EST'))
 
@@ -346,7 +354,7 @@ gD_Rt <- ggplot(D_Rt, aes(x=Date)) +
                       labels = c('Estimated', 'Confirmed')) +
   scale_x_date(date_breaks = "1 week", date_labels = "%b-%d") +
   scale_y_continuous(minor_breaks = c(seq(0,2, by=0.2),seq(seq(2,10,by=0.5)))) +
-  coord_cartesian(ylim=c(0,3.5)) +
+  coord_cartesian(ylim=c(0,1.5)) +
   theme_light(base_size = 25) +
   theme(axis.text.x = element_text(angle=45, hjust=1)) + 
   theme(strip.text = element_text(size=10))
@@ -361,7 +369,7 @@ ggsave('images/R0_Weekly_Time_varying_short_BOTH_cases.png', gD_Rt,
 
 ```{r}
 write_csv(Rt,'data/D_Rt.csv')
-write_csv(D_Rt_shortCONF,'data/D_Rt_short_CONF.csv')
-write_csv(D_Rt_shortEST,'data/D_Rt_short_EST.csv')
+#write_csv(D_Rt_shortCONF,'data/D_Rt_short_CONF.csv')
+#write_csv(D_Rt_shortEST,'data/D_Rt_short_EST.csv')
 
 ```

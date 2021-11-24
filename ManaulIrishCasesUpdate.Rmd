@@ -1,0 +1,27 @@
+---
+title: "Manual Irish data"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(devtools)
+library(lubridate)
+library(jsonlite)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data}
+Irish_Current <- readRDS(file='data/Irish_Current.rds')
+names(Irish_Current)
+```

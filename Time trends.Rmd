@@ -29,12 +29,14 @@ Latest HSE/HPSC data
 ```{r}
 Irish_Current <- readRDS('data/Irish_Current.rds')
   start_date = min(Irish_Current$Date)
-  end_date = max(Irish_Current$Date) + days(14)
+  end_date = max(Irish_Current$Date) + days(5)
 
 Lab_RecordsCSV <-  readRDS('data/Lab_RecordsCSV.rds')
 ```
 
-# Cases
+# Cases over time
+
+## Since the start
 
 ```{r}
 ggCases <- ggplot(Irish_Current,aes(x=date(Date),y=ConfirmedCovidCases)) +
@@ -56,7 +58,32 @@ ggsave('images/COVID19Caseslogscale.png', ggCases,
        device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
 ```
 
+## Last 60 days
+
+```{r}
+ggCases <- ggplot(Irish_Current %>% filter(Date > end_date-60),
+                  aes(x=date(Date),y=ConfirmedCovidCases)) +
+  geom_path(alpha=0.3) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.5,colour='blue') +
+  scale_x_date(limits=c(end_date-60, end_date),
+               date_breaks = "1 week",
+               date_labels = "%d-%b",
+               date_minor_breaks = "1 day") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed COVID19 cases over time') +
+  theme_light()
+
+ggCases
+
+ggsave('images/COVID19CasesShortlinear.png', ggCases,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
 # Deaths
+
+## Since the start
 
 ```{r}
 ggDeaths <- ggplot(Irish_Current,aes(x=date(Date),y=ConfirmedCovidDeaths)) +
@@ -64,6 +91,28 @@ ggDeaths <- ggplot(Irish_Current,aes(x=date(Date),y=ConfirmedCovidDeaths)) +
   geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
   geom_point(alpha=0.3,colour='blue') +
   scale_x_date(limits=c(start_date, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Confirmed COVID19 deaths over time') +
+  theme_light()
+
+ggDeaths
+
+ggsave('images/COVID19Deathslogscale.png', ggDeaths,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+## Last 60 days
+
+```{r}
+ggDeaths <- ggplot(Irish_Current,aes(x=date(Date),y=ConfirmedCovidDeaths)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(end_date-60, end_date),
                date_breaks = "1 month",
                date_labels = "%b",
                date_minor_breaks = "1 week") +
@@ -91,12 +140,36 @@ end_date = max(Irish_Profile$Date) + days(14)
 
 # Admissions
 
+## Since the start
+
 ```{r}
 ggAdmissions <- ggplot(Irish_Profile,aes(x=date(Date),y=Admissions)) +
   geom_path(alpha=0.1) +
   geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
   geom_point(alpha=0.3,colour='blue') +
-  scale_x_date(limits=c(start_date, end_date),
+  scale_x_date(limits=c(start_date, end_date-22),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_log10() +
+  xlab('Date') + ylab('Cases (log scale)') +
+  ggtitle('Hospitalised COVID19 Cases over time') +
+  theme_light()
+
+ggAdmissions
+
+ggsave('images/COVID19Admissionslogscale.png', ggAdmissions,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+## Last 60 days
+
+```{r}
+ggAdmissions <- ggplot(Irish_Profile,aes(x=date(Date),y=Admissions)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(end_date-60, end_date-22),
                date_breaks = "1 month",
                date_labels = "%b",
                date_minor_breaks = "1 week") +
@@ -112,6 +185,8 @@ ggsave('images/COVID19Admissionslogscale.png', ggAdmissions,
 ```
 
 # ICU Admissions
+
+## Since the start
 
 ```{r}
 ggICU <- ggplot(Irish_Profile,aes(x=date(Date),y=ICU)) +
@@ -140,6 +215,9 @@ Lab_Records <- readRDS(file='data/Lab_Records.rds')
 
 ```
 
+## Number of tests done
+
+### since start
 
 ```{r}
 ggTests <- ggplot(Lab_Records,aes(x=date(Date),y=TestsDone)) +
@@ -161,6 +239,31 @@ ggsave('images/LabTestsDone.png', ggTests,
        device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
 ```
 
+### Last 60 days
+
+```{r}
+ggTests <- ggplot(Lab_Records,aes(x=date(Date),y=TestsDone)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(end_date-60, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Tests') +
+  ggtitle('Laboratory tests done') +
+  theme_light()
+
+ggTests
+
+ggsave('images/LabTestsDone.png', ggTests,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+## Tests positive
+
+### Since start
 
 ```{r}
 ggTestsPos <- ggplot(Lab_Records,aes(x=date(Date),y=TestsPos)) +
@@ -182,6 +285,33 @@ ggsave('images/LabTestsPos.png', ggTestsPos,
        device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
 ```
 
+### Last 60 days
+
+```{r}
+ggTestsPos <- ggplot(Lab_Records,aes(x=date(Date),y=TestsPos)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(end_date -60, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Tests') +
+  ggtitle('Positive tests number') +
+  theme_light()
+
+ggTestsPos
+
+ggsave('images/LabTestsPos.png', ggTestsPos,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+
+## Percentage tests positive
+
+### Since start
+
 ```{r}
 ggTestsPosPct <- ggplot(Lab_Records,aes(x=date(Date),y=PosRate)) +
   geom_path(alpha=0.1) +
@@ -191,7 +321,28 @@ ggTestsPosPct <- ggplot(Lab_Records,aes(x=date(Date),y=PosRate)) +
                date_breaks = "1 month",
                date_labels = "%b",
                date_minor_breaks = "1 week") +
-#  scale_y_log10() +
+  xlab('Date') + ylab('Percentage tests positive') +
+  ggtitle('Positive tests %') +
+  theme_light()
+
+ggTestsPosPct
+
+ggsave('images/LabTestsPosPct.png', ggTestsPosPct,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+### Last 60 days
+
+```{r}
+ggTestsPosPct <- ggplot(Lab_Records,aes(x=date(Date),y=PosRate)) +
+  geom_path(alpha=0.1) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3,colour='blue') +
+  scale_x_date(limits=c(end_date - 60, end_date),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+  scale_y_continuous(limits=c(0,12.5)) +
   xlab('Date') + ylab('Percentage tests positive') +
   ggtitle('Positive tests %') +
   theme_light()
@@ -203,89 +354,4 @@ ggsave('images/LabTestsPosPct.png', ggTestsPosPct,
 ```
 
 
-## Positive tests and recorded cases
 
-```{r}
-Cases <- Irish_Current %>% select(Date,ConfirmedCovidCases)
-Tests <- Lab_Records %>% select(Date,TestsDone,TestsPos)
-Linked <- Cases %>% inner_join(Tests) %>%
-  mutate(Diff = TestsPos - ConfirmedCovidCases) %>%
-  mutate(DiffCasePct = 100*Diff/ConfirmedCovidCases) %>%
-  mutate(DiffTestsPct = 100*Diff/TestsPos)
-
-ggplot(Linked,aes(x=date(Date),y=Diff)) +geom_path()
-ggplot(Linked,aes(x=date(Date), y=DiffCasePct)) +geom_path() +geom_smooth()
-ggplot(Linked,aes(x=date(Date), y=DiffTestsPct)) +geom_path() +geom_smooth()
-
-
-saveRDS(Linked,file='data/Linked.rds')
-```
-
-```{r}
-
-ggTestsCases <- ggplot(Linked,aes(x=date(Date),y=TestsPos)) +
-  geom_path(alpha=0.1) +
-  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
-  geom_point(alpha=0.3,colour='blue') +
-  geom_path(aes(y=ConfirmedCovidCases),alpha=0.1,colour='lightgreen') +
-  geom_point(aes(y=ConfirmedCovidCases),alpha=0.3,colour='lightgreen') +
-  geom_smooth(aes(y=ConfirmedCovidCases),alpha=0.1,span=0.2,se=FALSE,colour='lightgreen') +
-  scale_x_date(limits=c(start_date, end_date),
-               date_breaks = "1 month",
-               date_labels = "%b",
-               date_minor_breaks = "1 week") +
-#  scale_y_log10() +
-  xlab('Date') + ylab('Tests positive') +
-  ggtitle('Positive tests (N)') +
-  theme_light()
-
-ggTestsCases
-
-ggsave('images/TestsCases.png', ggTestsCases,
-       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
-```
-
-```{r}
-
-Linked <- Linked %>%
-  mutate(TestsPosPct = 100*TestsPos/TestsDone)
-
-ggTestsCasesPct <- ggplot(Linked,aes(x=date(Date),y=TestsPosPct)) +
-  geom_path(alpha=0.1) +
-  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
-  geom_point(alpha=0.3,colour='blue') +
-  scale_x_date(limits=c(start_date, end_date),
-               date_breaks = "1 month",
-               date_labels = "%b",
-               date_minor_breaks = "1 week") +
-#  scale_y_log10() +
-  xlab('Date') + ylab('Percentage tests positive') +
-  ggtitle('Positive tests (%)') +
-  theme_light()
-
-ggTestsCasesPct
-
-ggsave('images/TestsCasesPct.png', ggTestsCasesPct,
-       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
-```
-
-```{r}
-
-ggDiff <- ggplot(Linked,aes(x=date(Date),y=Diff)) +
-  geom_path(alpha=0.1) +
-  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
-  geom_point(alpha=0.3,colour='blue') +
-  scale_x_date(limits=c(start_date, end_date),
-               date_breaks = "1 month",
-               date_labels = "%b",
-               date_minor_breaks = "1 week") +
-#  scale_y_log10() +
-  xlab('Date') + ylab('Difference') +
-  ggtitle('Difference between Positive tests and Confirmed cases over time') +
-  theme_light()
-
-ggDiff
-
-ggsave('images/Diff.png', ggDiff,
-       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
-```

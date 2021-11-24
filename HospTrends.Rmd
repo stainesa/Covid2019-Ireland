@@ -1,0 +1,186 @@
+---
+title: "Hospitalisation trends"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+#Purpose
+To prepare graphs of hospitalisation for coronavirus by age.
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(RcppRoll)
+library(lubridate)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
+```
+
+# Load the data
+Latest HSE/HPSC data
+
+```{r}
+Irish_Profile <- readRDS('data/Irish_Profile.rds')
+
+  start_date = min(Irish_Profile$Date)
+  end_date = max(Irish_Profile$Date) + days(5)
+```
+
+21 day moving averages
+
+```{r}
+
+
+#Aged1to4, Aged5to14, Aged15to24, Aged25to34, Aged35to44,Aged45to54, Aged55to64, Aged65to74, Aged75to84, Aged65up,
+
+Hosp_profile <- Irish_Profile %>%
+  select(Date, matches('HospitalisedAged')) %>%
+  mutate(HospitalisedAged5 = c(NA,diff(HospitalisedAged5))) %>%
+  mutate(HospitalisedAged5 = roll_mean(HospitalisedAged5, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged5to14 = c(NA,diff(HospitalisedAged5to14))) %>%
+  mutate(HospitalisedAged5to14 = roll_mean(HospitalisedAged5to14, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged15to24 = c(NA,diff(HospitalisedAged15to24))) %>%
+  mutate(HospitalisedAged15to24 = roll_mean(HospitalisedAged15to24, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged25to34 = c(NA,diff(HospitalisedAged25to34))) %>%
+  mutate(HospitalisedAged25to34 = roll_mean(HospitalisedAged25to34, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged35to44 = c(NA,diff(HospitalisedAged35to44))) %>%
+  mutate(HospitalisedAged35to44 = roll_mean(HospitalisedAged35to44, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged45to54 = c(NA,diff(HospitalisedAged45to54))) %>%
+  mutate(HospitalisedAged45to54 = roll_mean(HospitalisedAged45to54, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged55to64 = c(NA,diff(HospitalisedAged55to64))) %>%
+  mutate(HospitalisedAged55to64 = roll_mean(HospitalisedAged55to64, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged65to74 = c(NA,diff(HospitalisedAged65to74))) %>%
+  mutate(HospitalisedAged65to74 = roll_mean(HospitalisedAged65to74, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged75to84 = c(NA,diff(HospitalisedAged75to84))) %>%
+  mutate(HospitalisedAged75to84 = roll_mean(HospitalisedAged75to84, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(HospitalisedAged85up = c(NA,diff(HospitalisedAged85up))) %>%
+  mutate(HospitalisedAged85up = roll_mean(HospitalisedAged85up, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE))
+
+Hosp_profile <- Hosp_profile %>% rename(HospitalisedAged0to4 = HospitalisedAged5)
+
+Hosp_profile <- Hosp_profile %>%
+  pivot_longer(-Date,names_prefix = 'Hospitalised', names_to = 'Aged', values_to = 'Admitted')
+
+Case_profile <- Irish_Profile %>%
+  select(Date, starts_with('Aged')) %>%
+  rename(Aged0to4 = Aged1to4) %>%
+  mutate(Aged0to4 = c(NA,diff(Aged0to4))) %>%
+  mutate(Aged0to4 = roll_mean(Aged0to4, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged5to14 = c(NA,diff(Aged5to14))) %>%
+  mutate(Aged5to14 = roll_mean(Aged5to14, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged15to24 = c(NA,diff(Aged15to24))) %>%
+  mutate(Aged15to24 = roll_mean(Aged15to24, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged25to34 = c(NA,diff(Aged25to34))) %>%
+  mutate(Aged25to34 = roll_mean(Aged25to34, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged35to44 = c(NA,diff(Aged35to44))) %>%
+  mutate(Aged35to44 = roll_mean(Aged35to44, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged45to54 = c(NA,diff(Aged45to54))) %>%
+  mutate(Aged45to54 = roll_mean(Aged45to54, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged55to64 = c(NA,diff(Aged55to64))) %>%
+  mutate(Aged55to64 = roll_mean(Aged55to64, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged65to74 = c(NA,diff(Aged65to74))) %>%
+  mutate(Aged65to74 = roll_mean(Aged65to74, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged75to84 = c(NA,diff(Aged75to84))) %>%
+  mutate(Aged75to84 = roll_mean(Aged75to84, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE)) %>%
+  mutate(Aged85up = c(NA,diff(Aged85up))) %>%
+  mutate(Aged85up = roll_mean(Aged85up, n=21, align='right', fill=0, normalize=TRUE, na.rm=TRUE))
+
+Case_profile <- Case_profile %>%
+  pivot_longer(-Date, names_to = 'Aged', values_to = 'Confirmed')
+
+Hospitalisations <- Case_profile %>%
+  inner_join(Hosp_profile,  by = c("Date", "Aged")) %>%
+  mutate(Aged = as_factor(Aged)) %>%
+  mutate(Aged = fct_relevel(Aged, "Aged0to4", "Aged5to14", "Aged15to24", "Aged25to34", "Aged35to44", "Aged45to54", "Aged55to64", "Aged65to74", "Aged75to84", "Aged85up")) # Factor levels in right order
+
+#Check
+levels(Hospitalisations$Aged) # Yes
+
+
+Hospitalisations <- Hospitalisations %>%
+  mutate(Rate = 100* Admitted/Confirmed)
+
+
+```
+
+```{r}
+ggHospitalisations <- ggplot(Hospitalisations,aes(x=date(Date), y=Rate, group=Aged, colour=Aged)) +
+  geom_path(alpha=0.2) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3) +
+  scale_x_date(limits=c(start_date+ days(21),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Rate per 100 cases') +
+  ggtitle('Hospitalisation rate for confirmed COVID19 cases', subtitle = 'by age group, over time') +
+  theme_light()
+
+ggHospitalisations
+
+ggsave('images/COVID19Hospitalisations.png', ggHospitalisations,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+```
+
+```{r}
+HY <- Hospitalisations %>% filter(Aged %in% c("Aged0to4", "Aged5to14", "Aged15to24"))
+
+ggHospitalisationsYoung <- ggplot(HY, aes(x=date(Date), y=Rate, group=Aged, colour=Aged)) +
+  geom_path(alpha=0.5) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3) +
+  scale_x_date(limits=c(start_date+ days(21),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Rate per 100 cases') +
+  ggtitle('Hospitalisation rate for confirmed COVID19 cases', subtitle = 'by age group, over time') +
+  theme_light()
+
+ggHospitalisationsYoung
+
+ggsave('images/COVID19HospitalisationsYoung.png', ggHospitalisationsYoung,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+
+```
+
+# Recent
+
+```{r}
+
+Recent <- Hospitalisations %>%
+  filter(Date > end_date -days(60))
+
+ggHospitalisationsRecent <- ggplot(Recent, aes(x=date(Date), y=Rate, group=Aged, colour=Aged)) +
+  geom_path(alpha=0.5) +
+  geom_smooth(alpha=0.1,span=0.2,se=FALSE,colour='pink') +
+  geom_point(alpha=0.3) +
+  scale_x_date(limits=c(end_date - days(60),
+                        end_date + days(7)),
+               date_breaks = "1 month",
+               date_labels = "%b",
+               date_minor_breaks = "1 week") +
+#  scale_y_log10() +
+  xlab('Date') + ylab('Rate per 100 cases') +
+  ggtitle('Recent hospitalisation rate for confirmed COVID19 cases', subtitle = 'by age group, over time') +
+  theme_light()
+
+ggHospitalisationsRecent
+
+ggsave('images/COVID19HospitalisationsRecent.png', ggHospitalisationsRecent,
+       device = 'png', width = 20, height = 10, units = 'cm', dpi = 600)
+
+
+```
+
+

@@ -28,6 +28,9 @@ knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 ```{r load data file}
 JHU_C <- readRDS('data/JHU_C.rds')
 Population <- readRDS('data/Population.rds')
+
+Population <- Population %>%
+  select(iso_code,location)
 ```
 
 ```{r Fix data file to suit}
@@ -36,11 +39,13 @@ str(JHU_C)
   table(JHU_C$country, useNA = 'ifany')
   table(JHU_C$province, useNA = 'ifany')
 
-JHU_C %>% filter(is.na(province)) # Confine to country level data
+JHU_C <- JHU_C %>%
+  filter(is.na(province)) # Confine to country level data
 
 str(Population)
   paste(Population$location, sep='\t')
-  Population <- Population %>% filter(!is.na(iso_code)) # No iso code for International
+  Population <- Population %>% filter(!is.na(iso_code))
+  # No iso code for International
 
 ```
 
@@ -82,7 +87,7 @@ Population <- Population %>%
 
 JHU_C_iso <- JHU_C %>%
   inner_join(Population, by = c('country' = 'country')) %>%
-  mutate(casesAdj =  ifelse(cases < 0, 0, cases)) %>% # Set negative cases to 0
+  mutate(casesAdj =  ifelse(cases < 0, 0, cases)) #%>% # Set negative cases to 0
   mutate(rate = 10^6*casesAdj/population) # Rate is set to zero if case numbers under 0
 
 rm(JHUNames,JHU_C, Population)

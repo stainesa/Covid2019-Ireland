@@ -20,6 +20,9 @@ rm(list=ls())
 library(lubridate) # Sane date handling
 library(tidyverse)
 
+set.seed(6564)
+
+
 knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 ```
 
@@ -27,6 +30,10 @@ knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
 
 ```{r load data file}
 JHU_C_iso <- readRDS('data/JHU_C_iso.rds')
+
+  start_date = min(JHU_C_iso$date)
+  end_date = max(JHU_C_iso$date)
+Span = as.numeric(end_date - start_date)
 
 ```
 
@@ -68,15 +75,11 @@ Ireland_Dead <- JHU_Dead %>% filter(country == 'Ireland')
 Reasonable set of defaults for label positions.
 
 ```{r}
-set.seed(6564)
-Max_date = max(JHU_C_iso$date)
-Min_date = min(JHU_C_iso$date)
-Span = as.numeric(Max_date - Min_date)
 
 #Set of dates to play with
 Latest_date <- JHU_C_iso %>%
   group_by(country, type) %>% # Type within country
-  mutate(weight = 1 - 2*as.numeric(Max_date - date)/Span) %>% #weight more recent ranks more heavily
+  mutate(weight = 1 - 2*as.numeric(end_date - date)/Span) %>% #weight more recent ranks more heavily
   mutate(wtrate = rate * weight) %>%
   mutate(rank = round(rank(-wtrate))) %>%
   filter(rank == 50) %>%
@@ -127,6 +130,7 @@ ggContext <- ggplot(JHU_Confirmed %>%
 
 ggContext
 
+
 ggsave('images/Ireland_cases_in_context.png', ggContext,
        units = 'cm', dpi = 600, width = 21, height = 15)
 ```
@@ -171,11 +175,11 @@ ggsave('images/Ireland_case_rates_in_context.png', ggContextRates,
        units = 'cm', dpi = 600, width = 21, height = 15)
 
 ggContextRatesShort <- ggContextRates +
-  scale_x_date(limits = c(as_date('2020-09-01'), as_date('2021-01-15'))) +
-  geom_label(aes(x = as_date('2021-09-01') + Span*5/100,
-                 y = max(rate)/2),
-             colour = 'blue', fill = 'lightblue',
-             label='@isagcovid19') 
+  scale_x_date(limits = c(end_date - 60, end_date+7)) #+
+#  geom_label(aes(x = start_date + Span*5/100,
+#                 y = max(rate)/2),
+#             colour = 'blue', fill = 'lightblue',
+#             label='@isagcovid19') 
 
 ggContextRatesShort
 

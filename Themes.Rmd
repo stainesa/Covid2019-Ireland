@@ -1,0 +1,63 @@
+---
+title: "Themes.Rmd"
+author: "Anthony Staines"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: 
+    fig_caption: yes
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(tidyverse)
+```
+
+## R Markdown
+
+```{r make data}
+N=150
+start = as_date('2020-03-01')
+end = start + days(N) 
+
+data <- tibble(N = seq(1:N))
+
+data <- data %>%
+  mutate(Date = seq(from=start,to=end-1, by=1)) %>%
+  mutate(Count = rpois(150,5))
+
+  str(data)
+
+```
+
+
+# Plot
+
+```{r plot, echo=FALSE}
+g <- ggplot(data=data,
+            aes(x=Date, y = Count)) +
+  geom_point() +
+  geom_line()
+
+g
+g+theme_minimal()
+
+```
+
+# Theme
+
+```{r theme}
+theme_covid19 <- function() {
+  theme_minimal(
+    # color background 2
+    #panel.background = element_rect(fill = "gray97"),
+    # title x-axis text
+    axis.text.x = element_text(angle=45, hjust=1),
+  )
+}
+g+theme_covid19()
+
+```
