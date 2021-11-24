@@ -31,7 +31,9 @@ Irish_Current <- readRDS('data/Irish_Current.rds')
   start_date = min(Irish_Current$Date)
   end_date = max(Irish_Current$Date) + days(5)
 
-Lab_RecordsCSV <-  readRDS('data/Lab_RecordsCSV.rds')
+Lab_Records <-  readRDS('data/Lab_Records.rds')
+min(Lab_Records$Date_HPSC)
+max(Lab_Records$Date_HPSC)
 ```
 
 # Cases over time
@@ -134,7 +136,7 @@ Irish_Profile <- readRDS('data/Irish_Profile.rds') %>%
   filter(!is.na(CovidCasesConfirmed))
 
 start_date = min(Irish_Profile$Date)
-end_date = max(Irish_Profile$Date) + days(14)
+end_date = max(Irish_Profile$Date) + days(5)
 
 ```
 
@@ -342,7 +344,7 @@ ggTestsPosPct <- ggplot(Lab_Records,aes(x=date(Date),y=PosRate)) +
                date_breaks = "1 month",
                date_labels = "%b",
                date_minor_breaks = "1 week") +
-  scale_y_continuous(limits=c(0,12.5)) +
+  scale_y_continuous(limits=c(0,15.0)) +
   xlab('Date') + ylab('Percentage tests positive') +
   ggtitle('Positive tests %') +
   theme_light()

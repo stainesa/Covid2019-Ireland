@@ -2,25 +2,23 @@
 .Rhistory
 .RData
 .Ruserdata
-
 # R knitr output files
 *.html
 *.pdf
-
 # R cache files
 *_cache
 *_files
-
-
 *.Rdata
-
+# Directories
 Reversing lockdown
 images
-
+Old files
+Training
+HPSC
 # R binary data files
 *.rds
-
 # Spreadsheet files
 *.xls
 *.xlsx
 *.ods
+CountyCSV.csv

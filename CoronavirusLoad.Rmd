@@ -30,7 +30,7 @@ Load the latest accumulated international coronavirus data from GitHub
 
 ```{r load}
 install_github("RamiKrispin/coronavirus")
-
+str(coronavirus)
 ```
 
 Check to see if it worked.
@@ -206,7 +206,6 @@ Irish_Profile <- Irish_Profile %>%
   mutate(ICU = ifelse(ICU < 0, 0, ICU))
 ```
 
-
 Save the Irish_Profile
 
 ```{r}
@@ -271,7 +270,7 @@ Datespan <- as_tibble(start_date + days(0:n_days)) %>%
   rename(date = value) # I row per date in the two datasources
 
 Ireland_corrected <- Irish_Current %>%
-  mutate(province = '', country='Ireland') %>%
+  mutate(province = NA_character_ , country='Ireland') %>%
   rename(date = Date, province =  province, country = country,
          lat = X, long = Y, confirmed = ConfirmedCovidCases,
          Total.Cases = TotalConfirmedCovidCases,
@@ -295,7 +294,7 @@ table(Ireland_corrected$province, Ireland_corrected$country, useNA = 'ifany')
 
 # Replace NA with 0 in cases and province (comes from merge with Datespan)
 Ireland_corrected$cases[is.na(Ireland_corrected$cases)] <- 0
-Ireland_corrected$province[is.na(Ireland_corrected$province)] <- ''
+Ireland_corrected$province[is.na(Ireland_corrected$province)] <- NA_character_
 
 
 Ireland_corrected %>%
@@ -321,7 +320,7 @@ saveRDS(JHU_C, file='data/JHU_C.rds')
 
 ## OWID data
 
-```{r,eval=FALSE}
+```{r OWID}
 OWID <- read_csv("https://covid.ourworldindata.org/data/owid-covid-data.csv", guess_max=100000)
   str(OWID)
   
@@ -330,27 +329,3 @@ Population <- OWID %>% select(iso_code,location,population) %>% distinct()
   saveRDS(Population, file='data/Population.rds')
 ```
 
-
-# Manual update of Irish Data
-
-```{r,eval=FALSE}
-X <- Irish_Current$X[1]
-Y <- Irish_Current$Y[1]
-
-start_Date <- max(Irish_Current$Date) + 1 
-end_Date <- Sys.Date()
-Span <- days(end_Date - start_Date)@day
-Date <- seq(start_Date, end_Date, 1)
-ConfirmedCovidCases <- c(447,355,360,358,503,469,
-                         524,381,438,345,365,448,
-                         436,467,464,374,378,337,
-                         407,465,529,416,313,377)
-
-
-TotalConfirmedCovidCases <- ConfirmedCovidDeaths <- TotalCovidDeaths <- FID <- 0  
-Rows = tibble(X,Y,Date,ConfirmedCovidCases,TotalConfirmedCovidCases,ConfirmedCovidDeaths,TotalCovidDeaths,FID)
-
-Irish_Current <- Irish_Current %>% rbind(Rows)
-
-saveRDS(Irish_Current, file='data/Irish_Current.rds')
-```

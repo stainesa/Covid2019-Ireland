@@ -57,6 +57,10 @@ JHUNames <- JHU_C %>%
   distinct() %>%
   mutate(location = country)  #Copy existing names to a new variable
 
+#Check
+## Check
+JHU <- JHUNames %>% anti_join(Population, by = c( 'location' = 'location')) # 14 places
+Pop <- Population %>% anti_join(JHUNames, by = c('location' = 'location')) # HK and World
 #Manually fix anomalies
 JHUNames$location[JHUNames$country == 'Holy See'] = 'Vatican'
 JHUNames$location[JHUNames$country == 'US'] = 'United States'
@@ -69,13 +73,14 @@ JHUNames$location[JHUNames$country == 'West Bank and Gaza'] = 'Palestine'
 JHUNames$location[JHUNames$country == 'West Bank and Gaza'] = 'Palestine'
 JHUNames$location[JHUNames$country == 'Congo (Brazzaville)'] = 'Congo'
 JHUNames$location[JHUNames$country == 'Congo (Kinshasa)'] = 'Democratic Republic of Congo'
+JHUNames$location[JHUNames$country == 'Micronesia'] = 'Micronesia (country)'
 
 Population$population[Population$iso_code == 'CHN'] =
   Population$population[Population$iso_code == 'CHN'] +
   Population$population[Population$iso_code == 'HKG'] # Add HK pop to China
 
 ## Check
-JHUNames %>% anti_join(Population, by = c( 'location' = 'location')) # Two ships
+JHUNames %>% anti_join(Population, by = c( 'location' = 'location')) # Two ships + Olympics
 Population %>% anti_join(JHUNames, by = c('location' = 'location')) # HK and World
 ```
 
@@ -87,7 +92,7 @@ Population <- Population %>%
 
 JHU_C_iso <- JHU_C %>%
   inner_join(Population, by = c('country' = 'country')) %>%
-  mutate(casesAdj =  ifelse(cases < 0, 0, cases)) #%>% # Set negative cases to 0
+  mutate(casesAdj =  ifelse(cases < 0, 0, cases)) %>% # Set negative cases to 0
   mutate(rate = 10^6*casesAdj/population) # Rate is set to zero if case numbers under 0
 
 rm(JHUNames,JHU_C, Population)
